@@ -121,7 +121,7 @@ export class Keeper {
     this.wallets = KEYS.slice(0, 5).map(k => new ethers.Wallet(k, this.provider));
     this.game = this.wallets.map(w => new ethers.Contract(ADDRESS, ABI, w));
     this.read = new ethers.Contract(ADDRESS, ABI, this.provider);
-    this.zap = Lightning.latest(INCO_ENV, Number(process.env.CHAIN_ID || 84532));
+    this.zap = null;
     this.bots = null;
     this.tableId = null;
     this.running = true;
@@ -182,6 +182,11 @@ export class Keeper {
   }
 
   log(...a) { console.log(new Date().toISOString().slice(11, 19), ...a); }
+
+  async initZap() {
+    if (this.zap) return;
+    this.zap = await Lightning.latest(INCO_ENV, Number(process.env.CHAIN_ID || 84532));
+  }
 
   /** Open a table and fill every seat. */
   async openTable() {
@@ -342,6 +347,7 @@ export class Keeper {
   async run() {
     while (this.running) {
       try {
+        await this.initZap();
         await this.checkBalances();
         if (this.tableId == null || !this.bots) await this.ensureTable();
         await this.step();
