@@ -8,7 +8,7 @@ const ok = condition => condition || errors.push(ok.message);
 const text = path => readFileSync(resolve(root, path), 'utf8');
 
 const required = [
-  'README.md', 'package.json', 'package-lock.json',
+  'README.md', 'LICENSE', 'package.json', 'package-lock.json',
   'contracts/Incognito.sol', 'site/index.html', 'site/play.html',
   'site/favicon.svg', 'site/og-card.png', 'site/site.webmanifest',
   'vercel.json', 'fly.toml', 'Dockerfile',
@@ -26,6 +26,10 @@ for (const path of ['README.md', 'DEPLOY.md', 'site/play.html']) {
 }
 
 const pkg = JSON.parse(text('package.json'));
+ok.message = 'package.json license must be MIT';
+ok(pkg.license === 'MIT');
+ok.message = 'LICENSE must contain the standard MIT grant';
+ok(text('LICENSE').includes('Permission is hereby granted, free of charge'));
 for (const name of ['@inco/lightning', '@inco/lightning-js']) {
   ok.message = `${name} must be pinned to 1.0.0`;
   ok(pkg.dependencies?.[name] === '1.0.0');

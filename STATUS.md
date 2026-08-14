@@ -143,7 +143,7 @@ somebody wants to play twice. It deserves a day it did not get.
 - [x] Favicon, 1200x630 OG card, canonical URLs and social metadata
 - [x] Automated `npm run check:hackathon` submission audit
 - [ ] Confirm the jam's rules on music in submitted video
-- [ ] Choose and add an explicit repository license if the submission form requires one
+- [x] Add an explicit repository license (MIT)
 
 ## If there is only an hour
 

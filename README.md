@@ -113,3 +113,7 @@ The jam rules require disclosure. The confidential-compute patterns and SDK
 setup follow Inco's documentation, `ConfidentialDeck` reference and official
 Base Sepolia starter template. The game contract, encrypted collision-repaired
 deal, roster, bots, screens, artwork and copy were written for this jam.
+
+## License
+
+Released under the [MIT License](LICENSE).
