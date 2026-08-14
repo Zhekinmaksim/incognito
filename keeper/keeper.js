@@ -40,6 +40,7 @@ const ABI = [
   'function seatCard(uint256 tableId, uint8 seat) view returns (bytes32 id, bytes32 mask)',
   'function tableState(uint256 tableId) view returns (uint8 phase, uint8 filled, uint8 alive, uint8 turn, bool awaitingAnswer, uint8 responder, uint32 pot, uint64 deadline)',
   'function ledgerLength(uint256 tableId) view returns (uint256)',
+  'function nextTable() view returns (uint256)',
   'function ledger(uint256 tableId, uint256 i) view returns (uint8 asker, uint8 responder, uint8 queryMask, bool modeAll, bool answered, bool claim, uint8 phrasing, uint64 askedAt, uint32 elapsed, bytes32 truth, bool audited, bool wasLie)',
   'function glasses(address) view returns (uint32)',
   'event Dealt(uint256 indexed tableId)',
@@ -171,6 +172,30 @@ export class Keeper {
     }
   }
 
+  async ensureTable() {
+    const seatValue = ethers.parseEther(TABLE_FUND);
+    const next = Number(await this.read.nextTable());
+    if (next > 0) {
+      const candidate = BigInt(next - 1);
+      const st = await this.read.tableState(candidate);
+      const phase = PHASE[Number(st.phase)];
+      if (phase !== 'Closed') {
+        this.tableId = candidate;
+        if (phase === 'Open') {
+          for (let s = Number(st.filled); s < 5; s++) {
+            await this.send(s, 'sit', [this.tableId], { value: seatValue });
+            this.log(`seat ${s} sat down`);
+          }
+        }
+        const fresh = await this.read.tableState(this.tableId);
+        if (PHASE[Number(fresh.phase)] === 'Playing') await this.deal();
+        return;
+      }
+    }
+    await this.openTable();
+    await this.deal();
+  }
+
   /**
    * Read the four cards this seat is permitted to see. A seat asking for its
    * own card gets a rejection from the covalidators, which is the whole game
@@ -287,10 +312,7 @@ export class Keeper {
     while (this.running) {
       try {
         await this.checkBalances();
-        if (this.tableId == null) {
-          await this.openTable();
-          await this.deal();
-        }
+        if (this.tableId == null || !this.bots) await this.ensureTable();
         await this.step();
         this.onStep?.({ tableId: this.tableId?.toString() });
         await wait(1200);
