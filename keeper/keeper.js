@@ -18,6 +18,7 @@
 
 import { ethers } from 'ethers';
 import { createRequire } from 'node:module';
+import 'dotenv/config';
 import { createBot, PERSONALITIES } from '../game/bots.js';
 import { AGENTS, describeQuery } from '../game/rules.js';
 
@@ -197,7 +198,9 @@ export class Keeper {
 
   async initZap() {
     if (this.zap) return;
-    this.zap = await Lightning.latest(INCO_ENV, Number(process.env.CHAIN_ID || 84532), { hostChainRpcUrls: [RPC] });
+    this.zap = INCO_ENV === 'mainnet'
+      ? await Lightning.baseMainnet({ hostChainRpcUrls: [RPC] })
+      : await Lightning.baseSepoliaTestnet({ hostChainRpcUrls: [RPC] });
     const deployment = this.zap.deployment || {};
     this.log(`Inco ${INCO_ENV} executor ${deployment.executorAddress || this.zap.executorAddress} major ${deployment.majorVersion || 'unknown'}`);
     if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') this.log('Inco testnet TLS verification disabled for covalidators');

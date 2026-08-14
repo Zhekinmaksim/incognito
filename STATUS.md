@@ -8,32 +8,28 @@ what is easiest.
 ## What has met a chain, and what has not
 
 The first Base Sepolia deployment proved that the table can open, fill five
-seats and reach `Playing`. That contract used the old Inco SDK and then stalled
-when the keeper tried to decrypt a card through the retired KMS endpoint.
+seats and reach `Playing`. It then stalled because I had paired the contract's
+`Lib.testnet.sol` import with `Lightning.latest('testnet', 84532)`. The DeFy'26
+docs and official starter template use a different Base Sepolia path:
+`@inco/lightning/src/Lib.sol` on-chain and `Lightning.baseSepoliaTestnet()` in
+JavaScript.
 
-The code now targets `@inco/lightning-js@1.0.3-rc-9` and
-`@inco/lightning@1.0.3-rc-9`: card reads use `attestedDecrypt`, and
-accusations or declarations are settled by posting `attestedReveal`
-attestations back to the contract.
+The code now matches that hackathon path with `@inco/lightning-js@1.0.0` and
+`@inco/lightning@1.0.0`. Card reads use `attestedDecrypt`, and accusations or
+declarations are settled by posting `attestedReveal` attestations back to the
+contract.
 
-The upgraded contract was deployed on Base Sepolia at
-`0x67338DA99A30A37c10Ed29f01E7114fbf4A90227` and funded with `0.002 ETH`.
-It opened table `0`, filled five seats and reached the first live decrypt
-attempt. The keeper now reaches current Inco covalidator hosts, but both
-official SDK routes still fail before returning an attestation:
+The current Base Sepolia deployment is:
 
-- `@inco/lightning-js@1.0.3-rc-9`, `testnet`, Base Sepolia, executor
-  `0xe9CB49A5b16C6D4a093E5900AA8b450FD40541B6`
-- covalidators
-  `https://0x4b9e2a2386e244e8dff6ee420ca69bec3a1330be.12.covalidator.basesep.testnet.inco.org`
-  and
-  `https://0xe4edead22d79dca9da0883da3058a2cdbae5127e.12.covalidator.basesep.testnet.inco.org`
-- local and Fly checks require disabling TLS verification because the endpoints
-  present a self-signed certificate; after that, Connect RPC returns
-  `[unimplemented] HTTP 404` for `inco.kms.lite.v1.KmsService`
+```text
+0x9Abd9714FdF0f10967C4e028EdB40af4de827456
+```
 
-So the contract and keeper are past the old SDK issue, but card decrypt is
-still blocked on the public Inco testnet KMS endpoint.
+It is funded with `0.002 ETH` for Inco operation fees. The matching Inco
+executor is `0x4b9911b0191B0b6a6eA8F2Ed562e20Cff5AC8624`, with hosted
+covalidators under `*.12.covalidator.basesep.mainnet.inco.org`. This new
+deployment still needs one keeper run through a card decrypt before calling the
+chain integration proven.
 
 ### 1. Deploy and find out what breaks
 
@@ -43,10 +39,10 @@ npm run deploy
 
 Three things are worth watching, in order of how badly they would hurt:
 
-**Does the new Lightning executor run the same roster path?** The old deployed
-contract reached `Playing`, which strongly suggests `e.shr(uint256, euint256)`
-works on chain. The new package points at a different testnet executor, so this
-still needs one fresh deal before calling it proven.
+**Does the official Lightning executor run the same roster path?** The first
+deployment reached `Playing`, which strongly suggests `e.shr(uint256, euint256)`
+works on chain. The current deployment points at the DeFy'26 template executor,
+so this still needs one fresh deal before calling it proven.
 
 **What does a deal cost?** Five encrypted random draws, encrypted collision
 repair, five roster lookups and the access grants, paid out of the contract's
@@ -56,9 +52,9 @@ needs at least `0.0005 ETH` before gas and future tables. `deploy.js` now funds
 in the README, because a contract at zero stops dealing and the failure
 surfaces as an unrelated revert.
 
-**Can any permitted seat decrypt a card?** Not yet. The keeper can read the
-handle and sign the attested decrypt request, but the public covalidator
-Connect endpoint returns 404 before an attestation is produced.
+**Can any permitted seat decrypt a card?** Not yet on the current deployment.
+This is the first live check to run after the keeper is switched to the new
+contract address.
 
 ### 2. The keeper
 

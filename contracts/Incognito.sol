@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {e, ebool, euint256, inco} from "@inco/lightning/src/Lib.testnet.sol";
+import {e, ebool, euint256, inco} from "@inco/lightning/src/Lib.sol";
 import {DecryptionAttestation} from "@inco/lightning/src/lightning-parts/DecryptionAttester.types.sol";
 
 /// @title Incognito - a five-seat deduction game where you are the only person
