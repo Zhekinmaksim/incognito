@@ -3,6 +3,7 @@
  * interface parity are checked even without a node.
  */
 import { createChainSession, createObserver } from '../game/chain.js';
+import { createBot } from '../game/bots.js';
 import { PHASE } from '../game/iface.js';
 import { AGENTS, truthfulAnswer } from '../game/rules.js';
 
@@ -58,6 +59,11 @@ const signer = {
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { cond ? pass++ : (fail++, console.log('  FAIL', name)); };
+
+const keeperBot = createBot('STRAIGHT', 0);
+keeperBot.observe([7, 11, 1, 14], [null, 7, 11, 1, 14]);
+check('bot can read another seat card', keeperBot.knownIdOf(2) === 11);
+check('bot cannot read its own card', keeperBot.knownIdOf(0) === null);
 
 const f = fakeChain({ seat: 0 });
 const events = [];

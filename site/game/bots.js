@@ -28,6 +28,9 @@ export function createBot(personality, seat, rng = Math.random) {
     /** Told at the deal: the four cards this seat can read, by seat. */
     observe(ids, bySeat) { this.seen = ids.slice(); this.seatCards = bySeat; },
 
+    /** The card visible at another seat; our own deliberately stays null. */
+    knownIdOf(otherSeat) { return this.seatCards?.[otherSeat] ?? null; },
+
     /** Called for every answer, whoever it was about. */
     record(entry) { this.answers.push(entry); },
 
