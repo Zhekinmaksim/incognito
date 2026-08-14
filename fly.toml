@@ -1,0 +1,42 @@
+# INCOgnito keeper.
+#
+# One machine. Exactly one. Five wallets play from this process and it manages
+# their nonces itself, so a second instance would fight the first for every
+# move and half the transactions would vanish.
+
+app = "incognito-keeper"
+primary_region = "fra"
+
+[build]
+
+[env]
+  PORT = "8080"
+  INCO_ENV = "testnet"
+  CHAIN_ID = "84532"
+  STALL_MS = "300000"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # The keeper must never be suspended: a sleeping keeper is a dead table.
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "60s"
+    method = "GET"
+    path = "/health"
+
+# Small is enough — this process waits on RPC far more than it computes.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpus = 1
+
+[deploy]
+  # Take the old keeper down before the new one comes up, or they will both
+  # play for a moment and collide.
+  strategy = "immediate"

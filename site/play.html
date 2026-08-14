@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INCOGNITO — take a seat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=League+Gothic&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0B0A09; --ink-2:#100E0D; --ink-3:#161311;
+  --paper:#E4DCCB; --body:#B3AA98; --dim:#7C7466;
+  --gold:#D6A62A; --blood:#A8221A;
+  --rule:rgba(228,220,203,.13);
+  --display:'League Gothic','Arial Narrow',sans-serif;
+  --bodyfont:'Source Serif 4',Georgia,serif;
+  --type:'Special Elite','Courier New',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--ink);color:var(--body);font-family:var(--bodyfont);font-size:16px;line-height:1.6;
+     min-height:100svh;overflow-x:hidden}
+img{display:block;max-width:100%}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:disabled{cursor:default;opacity:.32}
+
+.grain{position:fixed;inset:0;z-index:80;pointer-events:none;opacity:.09;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.lamp{position:fixed;left:50%;top:-32vh;width:min(140vw,1400px);height:100vh;z-index:0;pointer-events:none;
+  transform:translateX(-50%);
+  background:radial-gradient(ellipse 42% 36% at 50% 40%, rgba(214,166,42,.15) 0%, rgba(214,166,42,0) 70%);
+  animation:breathe 11s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:.88}46%{opacity:1}50%{opacity:.8}}
+
+.wrap{position:relative;z-index:2;width:min(100% - 32px,1180px);margin-inline:auto;padding:22px 0 90px}
+
+/* ---------------- top ---------------- */
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;
+     padding-bottom:16px;border-bottom:1px solid var(--rule)}
+.mark{font-family:var(--display);font-size:1.9rem;line-height:1;letter-spacing:.01em;text-transform:uppercase}
+.mark .a{color:var(--gold)} .mark .b{color:var(--paper)}
+.tab{display:flex;align-items:center;gap:9px}
+.glass{width:15px;height:23px;border:1px solid var(--gold);border-top:none;position:relative}
+.glass::after{content:'';position:absolute;inset:auto 0 0 0;height:55%;background:rgba(214,166,42,.24)}
+.glass.spent{border-color:#3B3630}
+.glass.spent::after{display:none}
+.modebar{display:flex;border:1px solid var(--rule)}
+.mb{font-family:var(--type);font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+    padding:8px 12px;color:var(--dim);border-right:1px solid var(--rule);transition:.15s}
+.mb:last-child{border-right:0}
+.mb:hover{color:var(--paper)}
+.mb.on{background:var(--gold);color:var(--ink)}
+.chainbar{margin-top:14px;padding:12px 14px;background:var(--ink-2);border:1px solid var(--rule);
+  display:none;align-items:center;gap:14px;flex-wrap:wrap;
+  font-family:var(--type);font-size:11px;letter-spacing:.03em;color:var(--dim)}
+.chainbar.on{display:flex}
+.chainbar b{color:var(--gold);font-weight:400}
+.chainbar .addr{color:var(--paper)}
+.tab .lbl{font-family:var(--type);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+
+/* ---------------- the table ---------------- */
+.table{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:26px}
+.seat{background:var(--ink-2);border:1px solid var(--rule);padding:10px;position:relative;
+      transition:border-color .3s,opacity .4s,transform .3s}
+.seat img{width:100%;aspect-ratio:2/3;object-fit:cover;filter:saturate(.86)}
+.seat .nm{font-family:var(--display);font-size:1.25rem;line-height:1.05;text-transform:uppercase;
+          color:var(--paper);margin-top:9px}
+.seat .role{font-family:var(--type);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-top:3px}
+.seat.you{border-color:var(--gold)}
+.seat.you .redact{width:100%;aspect-ratio:2/3;background:
+  repeating-linear-gradient(135deg,#141110 0 9px,#0D0B0A 9px 18px);
+  display:flex;align-items:center;justify-content:center;text-align:center}
+.seat.you .redact span{font-family:var(--type);font-size:10px;letter-spacing:.08em;color:#4A443A;padding:0 8px}
+.seat.speaking{border-color:var(--gold);transform:translateY(-4px)}
+.seat.out{opacity:.28}
+.seat.out::after{content:'';position:absolute;left:8%;right:8%;top:44%;height:2px;background:var(--blood);transform:rotate(-6deg)}
+.seat .glasses{position:absolute;right:8px;top:8px;font-family:var(--type);font-size:10px;color:var(--gold);opacity:.75}
+
+/* ---------------- stage ---------------- */
+.stage{margin-top:24px;background:var(--ink-2);border:1px solid var(--rule);padding:26px 24px;min-height:186px;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.who{font-family:var(--type);font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.line{font-family:var(--display);font-size:clamp(1.7rem,4.2vw,3rem);line-height:.95;text-transform:uppercase;
+      color:var(--paper);margin-top:8px;max-width:20ch}
+.line.answer{font-size:clamp(3rem,9vw,6.4rem);position:relative;display:inline-block}
+.line.answer .strike{position:absolute;left:-.035em;right:-.035em;top:.315em;height:.088em;background:var(--blood);
+                     transform:scaleX(0);transform-origin:left center;animation:strike .34s cubic-bezier(.2,.8,.25,1) .08s forwards}
+@keyframes strike{to{transform:scaleX(1)}}
+.beat{font-family:var(--type);font-size:13px;letter-spacing:.08em;color:var(--dim);margin-top:14px;min-height:20px}
+.hint{font-style:italic;color:var(--dim);margin-top:10px;max-width:46ch}
+
+/* ---------------- controls ---------------- */
+.panel{margin-top:22px;display:grid;grid-template-columns:1.35fr 1fr;gap:18px}
+@media(max-width:900px){.panel{grid-template-columns:1fr}.table{grid-template-columns:repeat(3,1fr)}}
+.box{background:var(--ink-2);border:1px solid var(--rule);padding:18px}
+.box h3{font-family:var(--type);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+        color:var(--gold);font-weight:400;margin-bottom:14px}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{font-family:var(--display);font-size:1.15rem;line-height:1;text-transform:uppercase;letter-spacing:.03em;
+      color:var(--body);border:1px solid var(--rule);padding:9px 13px 6px;transition:.15s}
+.chip:hover:not(:disabled){border-color:var(--gold);color:var(--paper)}
+.chip.on{background:var(--gold);color:var(--ink);border-color:var(--gold)}
+.modes{display:flex;gap:7px;margin-top:12px}
+.mode{font-family:var(--type);font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+      border:1px solid var(--rule);padding:7px 11px;color:var(--dim)}
+.mode.on{border-color:var(--gold);color:var(--gold)}
+.split{font-family:var(--type);font-size:11px;color:var(--dim);margin-top:12px;min-height:18px}
+.cta{display:inline-block;font-family:var(--display);font-size:1.5rem;line-height:1;letter-spacing:.05em;
+     text-transform:uppercase;color:var(--ink);background:var(--gold);padding:13px 34px 10px;
+     transform:rotate(-.35deg);transition:.15s;margin-top:14px}
+.cta:hover:not(:disabled){background:var(--paper);transform:rotate(.25deg) scale(1.02)}
+.cta.ghost{background:none;color:var(--gold);border:1px solid var(--gold);padding:12px 24px 9px;font-size:1.2rem}
+.cta.ghost:hover:not(:disabled){background:var(--gold);color:var(--ink)}
+.cta.danger{background:var(--blood);color:var(--paper)}
+.cta.danger:hover:not(:disabled){background:#C42A20;color:#fff}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* ---------------- ledger ---------------- */
+.ledger{max-height:260px;overflow-y:auto;font-family:var(--type);font-size:12px;line-height:1.55}
+.ledger::-webkit-scrollbar{width:5px}
+.ledger::-webkit-scrollbar-thumb{background:#2A2521}
+.rec{padding:9px 0;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}
+.rec:last-child{border-bottom:0}
+.rec .q{color:var(--body)}
+.rec .a{color:var(--paper)}
+.rec .t{color:var(--dim);font-size:11px}
+.rec .verdict{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase}
+.rec .verdict.lie{color:var(--blood)} .rec .verdict.true{color:var(--dim)}
+.call{font-family:var(--type);font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+      border:1px solid var(--rule);padding:5px 9px;color:var(--dim);white-space:nowrap}
+.call:hover:not(:disabled){border-color:var(--blood);color:var(--blood)}
+
+/* ---------------- the file ---------------- */
+.file{margin-top:22px}
+.grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;margin-top:12px}
+@media(max-width:900px){.grid{grid-template-columns:repeat(4,1fr)}}
+.card{position:relative;border:1px solid var(--rule);background:var(--ink-2);padding:6px;transition:.3s;cursor:pointer}
+.card img{width:100%;aspect-ratio:2/3;object-fit:cover}
+.card .cn{font-family:var(--display);font-size:.95rem;line-height:1;text-transform:uppercase;color:var(--paper);
+          margin-top:6px;text-align:center}
+.card .ct{font-family:var(--type);font-size:8.5px;line-height:1.35;color:var(--dim);text-align:center;margin-top:3px;min-height:2.4em}
+.card.gone{opacity:.2;filter:grayscale(1)}
+.card.gone::after{content:'';position:absolute;left:8%;right:8%;top:40%;height:2px;background:var(--blood);
+                  transform:rotate(-7deg)}
+.card.seated{outline:1px solid rgba(214,166,42,.35)}
+.card.seated::before{content:'at the table';position:absolute;left:6px;top:6px;z-index:2;
+  font-family:var(--type);font-size:8px;letter-spacing:.04em;text-transform:uppercase;
+  background:var(--ink);color:var(--gold);padding:2px 5px}
+.card.pick{outline:2px solid var(--gold)}
+.count{font-family:var(--type);font-size:11px;color:var(--dim);margin-top:12px}
+.count b{color:var(--gold);font-weight:400}
+
+/* ---------------- overlay ---------------- */
+.over{position:fixed;inset:0;z-index:60;background:rgba(6,5,5,.94);display:none;
+      align-items:center;justify-content:center;text-align:center;padding:24px}
+.over.on{display:flex}
+.over .big{font-family:var(--display);font-size:clamp(3.4rem,13vw,9rem);line-height:.82;text-transform:uppercase}
+.over .big.win{color:var(--gold)} .over .big.lose{color:var(--blood)}
+.over .sub{font-style:italic;font-size:18px;color:var(--body);margin-top:16px;max-width:44ch}
+.handle{display:block;width:100%;margin-top:22px;background:var(--ink-2);border:1px solid var(--rule);
+  color:var(--paper);font-family:var(--display);font-size:2rem;line-height:1;letter-spacing:.03em;
+  text-transform:uppercase;text-align:center;padding:16px 14px 12px;outline:none}
+.handle:focus{border-color:var(--gold)}
+.handle::placeholder{color:#4A443A;text-transform:none;font-family:var(--type);font-size:.85rem;letter-spacing:.04em}
+.over .roster{font-family:var(--type);font-size:12px;color:var(--dim);margin-top:22px;line-height:1.9}
+@media(prefers-reduced-motion:reduce){.lamp{animation:none}.line.answer .strike{animation:none;transform:scaleX(1)}}
+</style>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+<div class="lamp" aria-hidden="true"></div>
+
+<div class="wrap">
+  <div class="top">
+    <div class="mark"><span class="a">INCO</span><span class="b">GNITO</span></div>
+    <div class="row" style="gap:18px;align-items:center">
+      <div class="modebar" id="modebar">
+        <button class="mb on" data-mode="local" type="button">play here</button>
+        <button class="mb" data-mode="watch" type="button">watch the house</button>
+        <button class="mb" data-mode="play" type="button">take a real seat</button>
+      </div>
+      <div class="tab">
+        <span class="lbl">Your tab</span>
+        <div id="tab" class="row" style="gap:5px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chainbar" id="chainbar">
+    <span id="chainWhat">Watching the house table.</span>
+    <span id="chainWho" class="addr"></span>
+    <button class="call" id="connect" type="button" style="display:none">connect a wallet</button>
+    <span id="chainNote"></span>
+  </div>
+
+  <div class="table" id="table"></div>
+
+  <div class="stage">
+    <p class="who" id="stageWho">Interior. Cellar bar. Late.</p>
+    <p class="line" id="stageLine">Four of them can read your card</p>
+    <p class="beat" id="stageBeat"></p>
+    <p class="hint" id="stageHint">You cannot. Ask the room about yourself, and watch who takes too long to answer.</p>
+  </div>
+
+  <div class="panel">
+    <div class="box">
+      <h3 id="ctrlTitle">Your turn — ask the room</h3>
+      <div class="chips" id="chips"></div>
+      <div class="modes">
+        <button class="mode on" id="modeAny" type="button">any of these</button>
+        <button class="mode" id="modeAll" type="button">all of these</button>
+      </div>
+      <p class="split" id="split"></p>
+      <div class="row">
+        <button class="cta" id="askBtn" type="button">Ask</button>
+        <button class="cta ghost" id="declareBtn" type="button">Name yourself</button>
+      </div>
+      <div class="row" id="respondRow" style="display:none">
+        <button class="cta" id="sayYes" type="button">Say yes</button>
+        <button class="cta" id="sayNo" type="button">Say no</button>
+      </div>
+    </div>
+
+    <div class="box">
+      <h3>Answers you were given</h3>
+      <div class="ledger" id="ledger"><p class="t">Nothing yet.</p></div>
+    </div>
+  </div>
+
+  <div class="file">
+    <div class="box">
+      <h3>The file — who you might be</h3>
+      <div class="grid" id="grid"></div>
+      <p class="count" id="count"></p>
+    </div>
+  </div>
+</div>
+
+<div class="over on" id="door">
+  <div style="width:min(100% - 32px,520px)">
+    <p class="who" style="letter-spacing:.09em">Interior. Cellar bar. Late.</p>
+    <p class="big" style="font-size:clamp(2.6rem,9vw,5rem);color:var(--paper);margin-top:10px">Take a seat</p>
+    <p class="sub" style="margin-inline:auto">The barman wants a name for the tab. It is not the name on your
+    card — nobody gets to choose that, least of all you.</p>
+    <input id="handle" class="handle" maxlength="14" placeholder="what they call you" autocomplete="off">
+    <p class="roster" id="handleNote" style="margin-top:14px">Five glasses on the house.</p>
+    <button class="cta" id="enter" type="button" style="margin-top:18px">Sit down</button>
+  </div>
+</div>
+
+<div class="over" id="over">
+  <div>
+    <p class="big" id="overBig">Wrong</p>
+    <p class="sub" id="overSub"></p>
+    <p class="roster" id="overRoster"></p>
+    <button class="cta" id="again" type="button" style="margin-top:26px">Deal again</button>
+  </div>
+</div>
+
+<script type="module">
+import { AGENTS, TRAITS, traitsOf, splitQuality, describeQuery } from './game/rules.js';
+import { createSession, PHASE } from './game/session.js';
+import { createChainSession, createObserver, connectWallet, ABI, CHAINS } from './game/chain.js';
+import PORTRAITS from './game/portraits.js';
+
+/**
+ * Filled in after `npm run deploy`. Until it is, the chain modes say so
+ * plainly rather than failing with an RPC error nobody can read.
+ */
+const CHAIN = {
+  address: window.INCOGNITO_CONTRACT || '',
+  chainId: Number(window.INCOGNITO_CHAIN || 84532),
+  houseTable: Number(window.INCOGNITO_TABLE ?? 0),
+};
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+let S = null, picked = 0, modeAll = false, busy = false;
+let handle = 'You';
+const nameOf = seat => (seat === 0 ? handle : S.agentAt(seat).name);
+
+/* ---------------------------------------------------------------- rendering */
+
+function drawTab() {
+  $('tab').innerHTML = Array.from({ length: 5 }, (_, i) =>
+    `<span class="glass${i < S.state.glasses ? '' : ' spent'}"></span>`).join('');
+}
+
+function drawTable(speaking = -1) {
+  $('table').innerHTML = S.seats.map(seat => {
+    const out = !S.state.alive[seat];
+    if (seat === 0) {
+      return `<div class="seat you${out ? ' out' : ''}${speaking === 0 ? ' speaking' : ''}">
+        <div class="redact"><span>every one of them<br>can read this<br>except you</span></div>
+        <div class="nm">${handle}</div><div class="role">that is you</div></div>`;
+    }
+    const a = S.agentAt(seat);
+    return `<div class="seat${out ? ' out' : ''}${speaking === seat ? ' speaking' : ''}">
+      <span class="glasses">${'·'.repeat(Math.max(0, S.bots[seat].glasses))}</span>
+      <img src="${PORTRAITS[a.name]}" alt="${a.name}">
+      <div class="nm">${a.name}</div>
+      <div class="role">${S.personalityAt(seat).toLowerCase()}</div></div>`;
+  }).join('');
+}
+
+function drawGrid() {
+  const live = new Set(S.yourCandidates(0));
+  const lenient = new Set(S.yourCandidates(1));
+  const seated = new Set(S.seenByYou());
+  $('grid').innerHTML = AGENTS.map((a, id) => {
+    const gone = !live.has(id) && !(live.size === 0 && lenient.has(id));
+    return `<figure class="card${gone ? ' gone' : ''}${seated.has(id) ? ' seated' : ''}" data-id="${id}">
+      <img src="${PORTRAITS[a.name]}" alt="${a.name}" loading="lazy">
+      <figcaption class="cn">${a.name}</figcaption>
+      <div class="ct">${traitsOf(a.mask).join(' · ')}</div></figure>`;
+  }).join('');
+
+  const n = live.size;
+  $('count').innerHTML = n === 0
+    ? `<b>Nobody fits.</b> Somebody has lied to you — the record below shows who had the chance.`
+    : `<b>${n}</b> of sixteen still fit what you have been told.`;
+}
+
+function drawLedger() {
+  const mine = S.yourAnswers();
+  if (!mine.length) { $('ledger').innerHTML = '<p class="t">Nothing yet.</p>'; return; }
+  $('ledger').innerHTML = mine.slice().reverse().map(a => {
+    const who = S.agentAt(a.responder).name;
+    const verdict = a.audited
+      ? `<span class="verdict ${a.wasLie ? 'lie' : 'true'}">${a.wasLie ? 'lied' : 'told the truth'}</span>`
+      : `<button class="call" data-call="${a.id}" ${S.state.glasses < 1 ? 'disabled' : ''}>call it</button>`;
+    return `<div class="rec">
+      <div><div class="q">${a.text}</div>
+      <div class="a">${who} said <b>${a.claim ? 'yes' : 'no'}</b>${a.corrected ? ' <i>(and it was a lie)</i>' : ''}</div>
+      <div class="t">held it for ${a.elapsed}s</div></div>
+      <div>${verdict}</div></div>`;
+  }).join('');
+}
+
+function drawSplit() {
+  const cands = S.yourCandidates(0).length ? S.yourCandidates(0) : S.yourCandidates(1);
+  if (!picked) { $('split').textContent = 'Pick the traits you want to ask about.'; return; }
+  let yes = 0;
+  for (const id of cands) {
+    const hit = AGENTS[id].mask & picked;
+    if (modeAll ? hit === picked : hit !== 0) yes++;
+  }
+  $('split').textContent =
+    `“${describeQuery(picked, modeAll)}” separates ${yes} from ${cands.length - yes}.`;
+}
+
+function drawChips() {
+  $('chips').innerHTML = TRAITS.map((t, b) =>
+    `<button class="chip${picked & (1 << b) ? ' on' : ''}" data-bit="${b}" type="button">${t}</button>`).join('');
+}
+
+function stage(who, line, beat = '', hint = '', answer = false) {
+  $('stageWho').textContent = who;
+  $('stageLine').className = answer ? 'line answer' : 'line';
+  $('stageLine').innerHTML = answer ? `${line}<span class="strike"></span>` : line;
+  $('stageBeat').textContent = beat;
+  $('stageHint').textContent = hint;
+}
+
+function refresh(speaking = -1) {
+  drawTab(); drawTable(speaking); drawGrid(); drawLedger(); drawSplit();
+  const yourTurn = S.state.phase === PHASE.ASK && S.state.turn === 0;
+  const asked = S.state.phase === PHASE.RESPOND;
+  $('askBtn').disabled = !yourTurn || busy || !picked;
+  $('declareBtn').disabled = !yourTurn || busy;
+  $('respondRow').style.display = asked ? 'flex' : 'none';
+  $('chips').style.display = asked ? 'none' : 'flex';
+  document.querySelector('.modes').style.display = asked ? 'none' : 'flex';
+  $('ctrlTitle').textContent = asked ? 'They are waiting on you' : 'Your turn — ask the room';
+}
+
+/* ------------------------------------------------------------------- staging */
+
+/** Play the bots' moves one at a time so the room reads as a scene. */
+async function playMoves(moves) {
+  for (const m of moves) {
+    if (m.kind === 'exchange') {
+      const e = m.entry;
+      stage(`${nameOf(e.asker)} asks the room`, e.text);
+      refresh(e.asker); await sleep(1100);
+      stage(`${nameOf(e.responder)} answers`, '. . .', '', '');
+      refresh(e.responder); await sleep(400 + e.elapsed * 260);
+      stage(`${nameOf(e.responder)} answers`, e.claim ? 'Yes.' : 'No.',
+            `held it for ${e.elapsed}s`, '', true);
+      refresh(e.responder); await sleep(900);
+    } else if (m.kind === 'verdict') {
+      const v = m.verdict;
+      stage(`${nameOf(v.accuser)} calls it`,
+            v.wasLie ? 'Liar.' : 'Wrong.',
+            v.wasLie ? `${nameOf(v.responder)} is out` : 'a glass gone and a turn with it', '', true);
+      refresh(v.accuser); await sleep(1500);
+    } else if (m.kind === 'declare') {
+      stage(`${nameOf(m.seat)} names themselves`,
+            AGENTS[m.agentId].name, m.right ? 'correct' : 'wrong');
+      refresh(m.seat); await sleep(1400);
+    } else if (m.kind === 'asked-you') {
+      const p = S.pendingForYou();
+      stage(`${nameOf(p.asker)} asks you`, p.entry.text, '',
+            `You can read their card. The honest answer is ${p.honest ? 'yes' : 'no'}. Nobody can make you give it.`);
+      refresh(p.asker); await sleep(300);
+      return;   // hand control back
+    }
+    if (S.state.phase === PHASE.OVER) return;
+  }
+}
+
+async function afterYourMove() {
+  busy = true; refresh();
+  const moves = S.runBots();
+  await playMoves(moves);
+  busy = false;
+  if (S.state.phase === PHASE.OVER) return finish();
+  if (S.state.phase === PHASE.RESPOND) { refresh(); return; }
+  stage('Your turn', 'Ask the room', '', 'Pick the traits that split your list closest to half.');
+  refresh();
+}
+
+function finish() {
+  const won = S.state.winner === 0;
+  $('overBig').textContent = won ? 'You had it' : 'Wrong';
+  $('overBig').className = `big ${won ? 'win' : 'lose'}`;
+  $('overSub').textContent = won
+    ? 'You named yourself before the room could stop you.'
+    : `You were ${AGENTS[S.ids[0]].name}.`;
+  $('overRoster').innerHTML = 'the table<br>' + S.ids.map((id, s) =>
+    `${s === 0 ? handle.toLowerCase() : S.personalityAt(s).toLowerCase()} — ${AGENTS[id].name}`).join('<br>');
+  $('over').classList.add('on');
+}
+
+/* -------------------------------------------------------------------- events */
+
+$('chips').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  picked ^= 1 << Number(b.dataset.bit);
+  drawChips(); drawSplit(); refresh();
+});
+$('modeAny').addEventListener('click', () => { modeAll = false; $('modeAny').classList.add('on'); $('modeAll').classList.remove('on'); drawSplit(); });
+$('modeAll').addEventListener('click', () => { modeAll = true; $('modeAll').classList.add('on'); $('modeAny').classList.remove('on'); drawSplit(); });
+
+$('askBtn').addEventListener('click', async () => {
+  if (busy || !picked) return;
+  const r = S.ask(picked, modeAll);
+  if (!r.ok) return;
+  busy = true;
+  const e = r.entry;
+  stage('You ask the room', e.text); refresh(0); await sleep(900);
+  stage(`The house picks ${nameOf(e.responder)}`, '. . .'); refresh(e.responder);
+  const settled = S.settleAnswer();
+  await sleep(500 + settled.elapsed * 300);
+  stage(`${nameOf(settled.responder)} answers`, settled.claim ? 'Yes.' : 'No.',
+        `held it for ${settled.elapsed}s`, 'It proves nothing. It is the only thing there is.', true);
+  picked = 0; drawChips(); refresh(settled.responder);
+  await sleep(1200);
+  busy = false;
+  await afterYourMove();
+});
+
+$('sayYes').addEventListener('click', () => answer(true));
+$('sayNo').addEventListener('click', () => answer(false));
+let askedAt = 0;
+async function answer(claim) {
+  if (busy) return;
+  const held = Math.max(1, Math.round((Date.now() - askedAt) / 1000));
+  busy = true;
+  const p = S.pendingForYou();
+  const lied = p && claim !== p.honest;
+  stage('You answer', claim ? 'Yes.' : 'No.', `you held it for ${held}s`,
+        lied ? 'Three of them just watched you lie. Only the one who asked does not know.' : '', true);
+  S.respond(claim, held);
+  refresh(0); await sleep(1600);
+  busy = false;
+  if (S.state.phase === PHASE.OVER) return finish();
+  if (S.state.phase === PHASE.RESPOND) { refresh(); return; }
+  stage('Your turn', 'Ask the room', '', 'Pick the traits that split your list closest to half.');
+  refresh();
+}
+
+$('ledger').addEventListener('click', async e => {
+  const b = e.target.closest('.call'); if (!b || busy) return;
+  const r = S.accuse(Number(b.dataset.call));
+  if (!r.ok) return;
+  busy = true;
+  stage('You call it', r.wasLie ? 'Liar.' : 'Wrong.',
+        r.wasLie ? 'they are out' : 'the glass is gone, and so is your next turn', '', true);
+  refresh(); await sleep(1600); busy = false;
+  if (S.state.phase === PHASE.OVER) return finish();
+  refresh();
+});
+
+$('declareBtn').addEventListener('click', () => {
+  stage('Name yourself', 'Who are you?', '', 'Choose from the file below. Get it wrong and you are finished.');
+  document.querySelectorAll('.card').forEach(c => c.classList.add('pick'));
+  $('grid').scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+$('grid').addEventListener('click', async e => {
+  const c = e.target.closest('.card'); if (!c || busy) return;
+  if (!c.classList.contains('pick')) return;
+  document.querySelectorAll('.card').forEach(x => x.classList.remove('pick'));
+  busy = true;
+  const r = S.declare(Number(c.dataset.id));
+  refresh(); await sleep(600); busy = false;
+  if (S.state.phase === PHASE.OVER) return finish();
+  await afterYourMove();
+});
+
+$('again').addEventListener('click', () => { $('over').classList.remove('on'); deal(); });
+
+/* ------------------------------------------------------------ chain modes */
+
+let mode = 'local';
+let chain = null;          // observer or seat, when we are on chain
+
+function note(t) { $('chainNote').textContent = t || ''; }
+
+async function loadEthers() {
+  if (window.ethers) return window.ethers;
+  const m = await import('https://cdn.jsdelivr.net/npm/ethers@6.13.4/+esm');
+  window.ethers = m;
+  return m;
+}
+
+/** Read-only, no wallet, no permission. Everything shown here is public. */
+async function startWatching() {
+  if (!CHAIN.address) { note('No contract deployed yet — the table upstairs still plays.'); return; }
+  const { ethers } = await loadEthers().then(m => ({ ethers: m }));
+  const provider = new ethers.JsonRpcProvider(CHAINS[CHAIN.chainId].rpc);
+  const contract = new ethers.Contract(CHAIN.address, ABI, provider);
+  chain = createObserver({
+    contract, tableId: CHAIN.houseTable,
+    onEvent: ev => {
+      if (ev.type === 'notice') return note(ev.text);
+      if (ev.type === 'answered') {
+        const e = ev.entry;
+        stage('the house table', e.claim ? 'Yes.' : 'No.', `held it for ${e.elapsed}s`, e.text, true);
+      } else if (ev.type === 'asked') {
+        stage('the house table', ev.entry.text);
+      }
+      drawChainLedger();
+    },
+  });
+  note('live, no wallet needed');
+}
+
+/** A seat of your own. */
+async function startPlaying() {
+  if (!CHAIN.address) { note('No contract deployed yet.'); return; }
+  const conn = await connectWallet(CHAIN.chainId);
+  if (!conn.ok) { note(conn.why); return; }
+  const m = await loadEthers();
+  const provider = new m.BrowserProvider(window.ethereum);
+  const signer = await provider.getSigner();
+  const contract = new m.Contract(CHAIN.address, ABI, signer);
+  $('chainWho').textContent = conn.address.slice(0, 6) + '…' + conn.address.slice(-4);
+
+  // Inco's client needs the same wallet to prove you may read a card.
+  const { Lightning } = await import('https://esm.sh/@inco/js@latest/lite');
+  const zap = Lightning.latest(CHAIN.chainId === 8453 ? 'mainnet' : 'testnet', CHAIN.chainId);
+
+  note('finding you a seat…');
+  try {
+    const tx = await contract.sit(CHAIN.houseTable);
+    await tx.wait();
+  } catch (err) {
+    note('could not sit down: ' + (err.shortMessage || err.message));
+    return;
+  }
+
+  // Which chair did we actually get? The contract knows; ask it rather than guess.
+  let seat = -1;
+  for (let i = 0; i < 5; i++) {
+    try {
+      const owner = await contract.seatOwner(CHAIN.houseTable, i);
+      if (owner && owner.toLowerCase() === conn.address.toLowerCase()) { seat = i; break; }
+    } catch { /* older deploys may not expose it */ }
+  }
+  if (seat < 0) { note('sat down, but could not work out which seat — reload'); return; }
+  $('chainWhat').textContent = `Seat ${seat + 1}. Every move is a transaction.`;
+  chain = createChainSession({
+    contract, signer, zap, tableId: CHAIN.houseTable, seat,
+    address: conn.address,
+    onEvent: ev => {
+      if (ev.type === 'notice') return note(ev.text);
+      drawChainLedger();
+      if (ev.type === 'answered') {
+        const e = ev.entry;
+        stage('the table', e.claim ? 'Yes.' : 'No.', `held it for ${e.elapsed}s`, e.text, true);
+      }
+    },
+  });
+  note('seated');
+}
+
+/** The chain modes render from view(), not from the local session. */
+function drawChainLedger() {
+  if (!chain) return;
+  const v = chain.view();
+  $('ledger').innerHTML = v.ledger.slice().reverse().map(a => `
+    <div class="rec"><div>
+      <div class="q">${a.text}</div>
+      <div class="a">seat ${a.responder} said <b>${a.answered ? (a.claim ? 'yes' : 'no') : '…'}</b></div>
+      <div class="t">${a.answered ? 'held it for ' + a.elapsed + 's' : 'still deciding'}</div>
+    </div><div>${a.audited
+      ? `<span class="verdict ${a.wasLie ? 'lie' : 'true'}">${a.wasLie ? 'lied' : 'told the truth'}</span>`
+      : (v.you === a.asker ? `<button class="call" data-chaincall="${a.id}">call it</button>` : '')}</div></div>`).join('')
+    || '<p class="t">The room is quiet.</p>';
+}
+
+async function setMode(next) {
+  if (chain) { chain.destroy(); chain = null; }
+  mode = next;
+  document.querySelectorAll('.mb').forEach(b => b.classList.toggle('on', b.dataset.mode === next));
+  $('chainbar').classList.toggle('on', next !== 'local');
+  $('connect').style.display = next === 'play' ? 'inline-block' : 'none';
+  $('chainWhat').textContent = next === 'watch'
+    ? 'Watching the house table. Nothing is asked of you.'
+    : 'A seat of your own. Every move is a transaction.';
+  note('');
+
+  if (next === 'local') { $('door').classList.add('on'); return; }
+  if (next === 'watch') return startWatching();
+}
+
+$('modebar').addEventListener('click', e => {
+  const b = e.target.closest('.mb'); if (!b) return;
+  setMode(b.dataset.mode);
+});
+$('connect').addEventListener('click', startPlaying);
+$('ledger').addEventListener('click', async e => {
+  const b = e.target.closest('[data-chaincall]'); if (!b || !chain) return;
+  b.disabled = true;
+  await chain.accuse(Number(b.dataset.chaincall));
+});
+
+const enter = () => {
+  const v = $('handle').value.trim();
+  handle = (v || 'You').slice(0, 14);
+  $('door').classList.remove('on');
+  deal();
+  $('handle').blur();
+};
+$('enter').addEventListener('click', enter);
+$('handle').addEventListener('keydown', e => { if (e.key === 'Enter') enter(); });
+// A name is a nicety, not a gate: anyone who ignores it still gets dealt in.
+$('handle').addEventListener('input', () => {
+  $('handleNote').textContent = $('handle').value.trim()
+    ? 'Five glasses on the house. Your card is dealt face-out.'
+    : 'Five glasses on the house.';
+});
+
+/* ---------------------------------------------------------------------- deal */
+
+function drawChipsPlaceholder() { drawChips(); }
+
+function deal() {
+  picked = 0; modeAll = false; busy = false;
+  S = createSession({
+    onEvent: ev => {
+      if (ev.type === 'asked' && ev.entry.responder === 0) askedAt = Date.now();
+    },
+  });
+  window.__session = S;                       // for the console, and for tests
+  drawChips();
+  stage('Interior. Cellar bar. Late.', 'Four of them can read your card', '',
+        'You cannot. Ask the room about yourself, and watch who takes too long to answer.');
+  refresh();
+}
+
+// The room waits for you at the door.
+drawChipsPlaceholder();
+</script>
+</body>
+</html>

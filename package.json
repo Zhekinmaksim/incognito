@@ -1,0 +1,27 @@
+{
+  "name": "incognito",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "sim": "node game/simulate.js",
+    "watch": "node game/simulate.js --one --verbose",
+    "build": "hardhat compile",
+    "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.js --network baseSepolia",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network base",
+    "keeper": "node keeper/keeper.js",
+    "test:logic": "node test/ui-sequence.test.mjs && node test/chain-parity.test.mjs && node test/phrasing.test.mjs",
+    "playtest": "node test/playtest.mjs"
+  },
+  "dependencies": {
+    "@inco/lightning": "^0.1.0",
+    "@inco/js": "^0.1.0",
+    "ethers": "^6.13.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "hardhat": "^2.22.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0"
+  }
+}
