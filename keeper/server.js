@@ -29,6 +29,13 @@ const status = {
  * minutes is up and useless. It is "a move was made recently".
  */
 const STALL_MS = Number(process.env.STALL_MS || 5 * 60 * 1000);
+function describeError(err, depth = 0) {
+  if (!err || depth > 4) return '';
+  const head = err.shortMessage || err.message || String(err);
+  const cause = err.cause ? describeError(err.cause, depth + 1) : '';
+  return cause && cause !== head ? `${head} :: ${cause}` : head;
+}
+
 function healthy() {
   if (!status.lastStep) return Date.now() - Date.parse(status.startedAt) < STALL_MS;
   return Date.now() - Date.parse(status.lastStep) < STALL_MS;
@@ -61,7 +68,7 @@ async function main() {
   };
   keeper.onError = (err) => {
     status.errors++;
-    status.lastError = { at: new Date().toISOString(), message: err.shortMessage || err.message };
+    status.lastError = { at: new Date().toISOString(), message: describeError(err) };
   };
   keeper.onBalances = (b) => { Object.assign(status, b); };
 

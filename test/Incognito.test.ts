@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import hre from "hardhat";
-import { Lightning } from "@inco/js/lite";
+import { Lightning } from "@inco/lightning-js/lite";
 
 // These run against the Inco devnet or a Base Sepolia fork. The interesting
 // assertions are off-chain: what a given wallet is and is not permitted to
@@ -21,7 +21,7 @@ describe("Incognito", () => {
   beforeEach(async () => {
     const signers = await hre.ethers.getSigners();
     players = signers.slice(0, 5);
-    zap = Lightning.latest("devnet", 31337);
+    zap = await Lightning.latest("devnet", 31337);
     const F = await hre.ethers.getContractFactory("Incognito");
     game = await F.deploy();
     await game.waitForDeployment();
@@ -31,6 +31,8 @@ describe("Incognito", () => {
     return {
       account: { address: signer.address },
       transport: { url: "UNUSED IN TEST" },
+      request: async ({ method, params }: { method: string, params?: unknown[] }) =>
+        hre.ethers.provider.send(method, params || []),
       signTypedData: async (payload: any) => {
         const types = { ...payload.types };
         delete types.EIP712Domain;

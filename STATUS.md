@@ -11,15 +11,29 @@ The first Base Sepolia deployment proved that the table can open, fill five
 seats and reach `Playing`. That contract used the old Inco SDK and then stalled
 when the keeper tried to decrypt a card through the retired KMS endpoint.
 
-The code now targets `@inco/js@0.7.12-testnet` and
-`@inco/lightning@0.7.12-testnet`: card reads use `attestedDecrypt`, and
+The code now targets `@inco/lightning-js@1.0.3-rc-9` and
+`@inco/lightning@1.0.3-rc-9`: card reads use `attestedDecrypt`, and
 accusations or declarations are settled by posting `attestedReveal`
 attestations back to the contract.
 
 The upgraded contract was deployed on Base Sepolia at
-`0xf49537bb8dfd56448EcEA164D985B327cE989670` and funded with `0.002 ETH`.
-It still needs one live keeper run to prove card decrypt and attested
-settlement against covalidators.
+`0x67338DA99A30A37c10Ed29f01E7114fbf4A90227` and funded with `0.002 ETH`.
+It opened table `0`, filled five seats and reached the first live decrypt
+attempt. The keeper now reaches current Inco covalidator hosts, but both
+official SDK routes still fail before returning an attestation:
+
+- `@inco/lightning-js@1.0.3-rc-9`, `testnet`, Base Sepolia, executor
+  `0xe9CB49A5b16C6D4a093E5900AA8b450FD40541B6`
+- covalidators
+  `https://0x4b9e2a2386e244e8dff6ee420ca69bec3a1330be.12.covalidator.basesep.testnet.inco.org`
+  and
+  `https://0xe4edead22d79dca9da0883da3058a2cdbae5127e.12.covalidator.basesep.testnet.inco.org`
+- local and Fly checks require disabling TLS verification because the endpoints
+  present a self-signed certificate; after that, Connect RPC returns
+  `[unimplemented] HTTP 404` for `inco.kms.lite.v1.KmsService`
+
+So the contract and keeper are past the old SDK issue, but card decrypt is
+still blocked on the public Inco testnet KMS endpoint.
 
 ### 1. Deploy and find out what breaks
 
@@ -42,9 +56,9 @@ needs at least `0.0005 ETH` before gas and future tables. `deploy.js` now funds
 in the README, because a contract at zero stops dealing and the failure
 surfaces as an unrelated revert.
 
-**Can a seat decrypt its own card?** It must not be able to. The local test
-exists (`test/Incognito.test.ts`), but the real answer needs live covalidators.
-If this one fails there is no game, so run it first after redeploy.
+**Can any permitted seat decrypt a card?** Not yet. The keeper can read the
+handle and sign the attested decrypt request, but the public covalidator
+Connect endpoint returns 404 before an attestation is produced.
 
 ### 2. The keeper
 
@@ -54,11 +68,12 @@ fly secrets set RPC_URL=… CONTRACT=0x… KEEPER_KEYS=0x…,0x…,0x…,0x…,0
 fly deploy
 ```
 
-Tested against a node only up to the old SDK failure. Card reads now use
-`attestedDecrypt`, and accusations or declarations use `attestedReveal` plus
-`settleAccusation` / `settleDeclaration`. Expect to spend time on this round
-trip specifically: the contract waits in `AwaitingAccusation` or
-`AwaitingDeclaration` until the keeper posts a valid attestation.
+Tested on Fly through table creation, five seats and the first live card
+decrypt attempt. Card reads now use `attestedDecrypt`, and accusations or
+declarations use `attestedReveal` plus `settleAccusation` /
+`settleDeclaration`. Expect to spend time on the Inco KMS endpoint specifically:
+the contract waits in `AwaitingAccusation` or `AwaitingDeclaration` until the
+keeper posts a valid attestation.
 
 One machine, always. `fly.toml` pins it. The keeper owns the nonces for five
 wallets and a second copy would spend them twice.
@@ -67,7 +82,7 @@ wallets and a second copy would spend them twice.
 
 `site/play.html` has all three modes and only the first is proven. `watch`
 needs a deployed address in `window.INCOGNITO_CONTRACT`; `play` additionally
-needs `@inco/js` to work in a browser, which has not been checked — it is
+needs `@inco/lightning-js` to work in a browser, which has not been checked — it is
 imported from esm.sh and may need bundling instead.
 
 ---

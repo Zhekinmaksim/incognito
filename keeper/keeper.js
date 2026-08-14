@@ -22,13 +22,17 @@ import { createBot, PERSONALITIES } from '../game/bots.js';
 import { AGENTS, describeQuery } from '../game/rules.js';
 
 const require = createRequire(import.meta.url);
-const { Lightning } = require('@inco/js/lite');
+const { Lightning } = require('@inco/lightning-js/lite');
 
 const RPC = process.env.RPC_URL;
 const ADDRESS = process.env.CONTRACT;
 const KEYS = (process.env.KEEPER_KEYS || '').split(',').map(k => k.trim()).filter(Boolean);
 const INCO_ENV = process.env.INCO_ENV || 'testnet';
 const TABLE_FUND = process.env.TABLE_FUND_ETH || '0';
+
+if (INCO_ENV !== 'mainnet' && process.env.NODE_TLS_REJECT_UNAUTHORIZED == null) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
 
 const ABI = [
   'function openTable() payable returns (uint256)',
@@ -60,6 +64,7 @@ function ethersWalletClient(wallet) {
   return {
     account: { address: wallet.address },
     transport: { url: 'UNUSED IN TEST' },
+    request: async ({ method, params }) => wallet.provider.send(method, params || []),
     signTypedData: async payload => {
       const types = { ...payload.types };
       delete types.EIP712Domain;
@@ -92,6 +97,13 @@ function attestationForSolidity(attestation) {
 function plaintextValue(attestation) {
   const plaintext = attestation?.plaintext ?? attestation;
   return plaintext && typeof plaintext === 'object' && 'value' in plaintext ? plaintext.value : plaintext;
+}
+
+function describeError(err, depth = 0) {
+  if (!err || depth > 4) return '';
+  const head = err.shortMessage || err.message || String(err);
+  const cause = err.cause ? describeError(err.cause, depth + 1) : '';
+  return cause && cause !== head ? `${head} :: ${cause}` : head;
 }
 
 async function decryptHandle(zap, wallet, handle) {
@@ -185,7 +197,11 @@ export class Keeper {
 
   async initZap() {
     if (this.zap) return;
-    this.zap = await Lightning.latest(INCO_ENV, Number(process.env.CHAIN_ID || 84532));
+    this.zap = await Lightning.latest(INCO_ENV, Number(process.env.CHAIN_ID || 84532), { hostChainRpcUrls: [RPC] });
+    const deployment = this.zap.deployment || {};
+    this.log(`Inco ${INCO_ENV} executor ${deployment.executorAddress || this.zap.executorAddress} major ${deployment.majorVersion || 'unknown'}`);
+    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') this.log('Inco testnet TLS verification disabled for covalidators');
+    if (this.zap.covalidatorUrls) this.log(`Inco covalidators ${this.zap.covalidatorUrls.join(', ')}`);
   }
 
   /** Open a table and fill every seat. */
@@ -354,7 +370,7 @@ export class Keeper {
         this.onStep?.({ tableId: this.tableId?.toString() });
         await wait(1200);
       } catch (err) {
-        this.log('!', err.shortMessage || err.message);
+        this.log('!', describeError(err));
         this.onError?.(err);
         await wait(5000);
       }

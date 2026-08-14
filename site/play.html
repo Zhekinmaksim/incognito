@@ -268,7 +268,7 @@ import PORTRAITS from './game/portraits.js';
  * plainly rather than failing with an RPC error nobody can read.
  */
 const CHAIN = {
-  address: window.INCOGNITO_CONTRACT || '0xf49537bb8dfd56448EcEA164D985B327cE989670',
+  address: window.INCOGNITO_CONTRACT || '0x67338DA99A30A37c10Ed29f01E7114fbf4A90227',
   chainId: Number(window.INCOGNITO_CHAIN || 84532),
   houseTable: Number(window.INCOGNITO_TABLE ?? 0),
 };
@@ -560,8 +560,8 @@ async function startPlaying() {
   $('chainWho').textContent = conn.address.slice(0, 6) + '…' + conn.address.slice(-4);
 
   // Inco's client needs the same wallet to prove you may read a card.
-  const { Lightning } = await import('https://esm.sh/@inco/js@0.7.12-testnet/lite');
-  const zap = Lightning.latest(CHAIN.chainId === 8453 ? 'mainnet' : 'testnet', CHAIN.chainId);
+  const { Lightning } = await import('https://esm.sh/@inco/lightning-js@1.0.3-rc-9/lite');
+  const zap = await Lightning.latest(CHAIN.chainId === 8453 ? 'mainnet' : 'testnet', CHAIN.chainId);
 
   note('finding you a seat…');
   try {

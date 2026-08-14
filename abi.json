@@ -6,6 +6,11 @@
   },
   {
     "inputs": [],
+    "name": "CallFailedAfterFeeRefresh",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NoGlasses",
     "type": "error"
   },

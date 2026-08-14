@@ -15,8 +15,8 @@
     "playtest": "node test/playtest.mjs"
   },
   "dependencies": {
-    "@inco/js": "0.7.12-testnet",
-    "@inco/lightning": "0.7.12-testnet",
+    "@inco/lightning": "1.0.3-rc-9",
+    "@inco/lightning-js": "1.0.3-rc-9",
     "dotenv": "^16.4.5",
     "ethers": "^6.13.0"
   },
