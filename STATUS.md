@@ -14,8 +14,12 @@ when the keeper tried to decrypt a card through the retired KMS endpoint.
 The code now targets `@inco/js@0.7.12-testnet` and
 `@inco/lightning@0.7.12-testnet`: card reads use `attestedDecrypt`, and
 accusations or declarations are settled by posting `attestedReveal`
-attestations back to the contract. This compiles and passes the local harness,
-but the upgraded contract has not yet been redeployed on Base Sepolia.
+attestations back to the contract.
+
+The upgraded contract was deployed on Base Sepolia at
+`0xf49537bb8dfd56448EcEA164D985B327cE989670` and funded with `0.002 ETH`.
+It still needs one live keeper run to prove card decrypt and attested
+settlement against covalidators.
 
 ### 1. Deploy and find out what breaks
 

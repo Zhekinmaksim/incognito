@@ -17,9 +17,12 @@
  */
 
 import { ethers } from 'ethers';
-import { Lightning } from '@inco/js/lite';
+import { createRequire } from 'node:module';
 import { createBot, PERSONALITIES } from '../game/bots.js';
 import { AGENTS, describeQuery } from '../game/rules.js';
+
+const require = createRequire(import.meta.url);
+const { Lightning } = require('@inco/js/lite');
 
 const RPC = process.env.RPC_URL;
 const ADDRESS = process.env.CONTRACT;
