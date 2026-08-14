@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {e, ebool, euint256, inco} from "@inco/lightning/src/Lib.sol";
+import {DecryptionAttestation} from "@inco/lightning/src/lightning-parts/DecryptionAttester.types.sol";
 
 /// @title Incognito - a five-seat deduction game where you are the only person
 ///        at the table who cannot see your own card.
@@ -75,7 +76,6 @@ contract Incognito {
         uint8 pendingActor;
         uint8 pendingGuess;
         ebool pendingHandle;
-        uint256 pendingRequestId;
     }
 
     mapping(uint256 => Table) internal tables;
@@ -282,20 +282,16 @@ contract Incognito {
         t.pendingAnswerId = answerId;
         t.pendingActor = me;
         t.pendingHandle = a.truth;
-        t.pendingRequestId = e.requestDecryption(a.truth, this.accusationCallback.selector, abi.encode(tableId));
+        e.reveal(a.truth);
         emit Accused(tableId, answerId, me);
     }
 
-    function settleAccusation(uint256, bool, bytes[] calldata) external pure {
-        revert("callback only");
-    }
-
-    function accusationCallback(uint256 requestId, bool truthValue, bytes memory data) external {
-        require(msg.sender == address(inco), "only inco");
-        uint256 tableId = abi.decode(data, (uint256));
+    function settleAccusation(uint256 tableId, DecryptionAttestation memory decryption, bytes[] memory signatures) external {
         Table storage t = tables[tableId];
         if (t.phase != Phase.AwaitingAccusation) revert WrongPhase();
-        require(requestId == t.pendingRequestId, "stale reveal");
+        require(inco.incoVerifier().isValidDecryptionAttestation(decryption, signatures), "bad attestation");
+        require(decryption.handle == ebool.unwrap(t.pendingHandle), "stale reveal");
+        bool truthValue = uint256(decryption.value) != 0;
 
         Answer storage a = ledger[tableId][t.pendingAnswerId];
         a.audited = true;
@@ -326,20 +322,16 @@ contract Incognito {
         t.pendingActor = me;
         t.pendingGuess = guess;
         t.pendingHandle = correct;
-        t.pendingRequestId = e.requestDecryption(correct, this.declarationCallback.selector, abi.encode(tableId));
+        e.reveal(correct);
         emit Declared(tableId, me, guess);
     }
 
-    function settleDeclaration(uint256, bool, bytes[] calldata) external pure {
-        revert("callback only");
-    }
-
-    function declarationCallback(uint256 requestId, bool correct, bytes memory data) external {
-        require(msg.sender == address(inco), "only inco");
-        uint256 tableId = abi.decode(data, (uint256));
+    function settleDeclaration(uint256 tableId, DecryptionAttestation memory decryption, bytes[] memory signatures) external {
         Table storage t = tables[tableId];
         if (t.phase != Phase.AwaitingDeclaration) revert WrongPhase();
-        require(requestId == t.pendingRequestId, "stale reveal");
+        require(inco.incoVerifier().isValidDecryptionAttestation(decryption, signatures), "bad attestation");
+        require(decryption.handle == ebool.unwrap(t.pendingHandle), "stale reveal");
+        bool correct = uint256(decryption.value) != 0;
         t.phase = Phase.Playing;
 
         if (correct) {
@@ -393,24 +385,16 @@ contract Incognito {
 
         // Declassification: the table finally sees who everyone was.
         for (uint8 i = 0; i < SEATS; i++) {
-            e.requestDecryption(t.seats[i].id, this.finalCardCallback.selector, abi.encode(tableId, i));
+            e.reveal(t.seats[i].id);
         }
         // Every unaudited answer is opened too, so the full record of who lied
         // and got away with it becomes public at the end of the night.
         Answer[] storage L = ledger[tableId];
         for (uint256 k = 0; k < L.length; k++) {
             if (L[k].answered && !L[k].audited) {
-                e.requestDecryption(L[k].truth, this.finalTruthCallback.selector, abi.encode(tableId, k));
+                e.reveal(L[k].truth);
             }
         }
-    }
-
-    function finalCardCallback(uint256, uint256, bytes memory) external view {
-        require(msg.sender == address(inco), "only inco");
-    }
-
-    function finalTruthCallback(uint256, bool, bytes memory) external view {
-        require(msg.sender == address(inco), "only inco");
     }
 
     function _advance(Table storage t) internal {
@@ -462,6 +446,15 @@ contract Incognito {
     {
         Table storage t = tables[tableId];
         return (t.phase, t.filled, t.alive, t.turn, t.awaitingAnswer, t.responder, t.pot, t.deadline);
+    }
+
+    function pendingReveal(uint256 tableId)
+        external
+        view
+        returns (uint256 answerId, uint8 actor, uint8 guess, ebool handle)
+    {
+        Table storage t = tables[tableId];
+        return (t.pendingAnswerId, t.pendingActor, t.pendingGuess, t.pendingHandle);
     }
 
     /// Which address holds a seat. The client needs this to know where it sat.

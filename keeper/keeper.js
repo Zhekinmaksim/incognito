@@ -33,12 +33,13 @@ const ABI = [
   'function ask(uint256 tableId, uint8 queryMask, bool modeAll)',
   'function respond(uint256 tableId, bool claim, uint8 phrasing)',
   'function accuse(uint256 tableId, uint256 answerId)',
-  'function settleAccusation(uint256 tableId, bool truthValue, bytes[] signatures)',
+  'function settleAccusation(uint256 tableId, tuple(bytes32 handle, bytes32 value) decryption, bytes[] signatures)',
   'function declare(uint256 tableId, uint8 guess)',
-  'function settleDeclaration(uint256 tableId, bool correct, bytes[] signatures)',
+  'function settleDeclaration(uint256 tableId, tuple(bytes32 handle, bytes32 value) decryption, bytes[] signatures)',
   'function claimTimeout(uint256 tableId)',
   'function seatCard(uint256 tableId, uint8 seat) view returns (bytes32 id, bytes32 mask)',
   'function tableState(uint256 tableId) view returns (uint8 phase, uint8 filled, uint8 alive, uint8 turn, bool awaitingAnswer, uint8 responder, uint32 pot, uint64 deadline)',
+  'function pendingReveal(uint256 tableId) view returns (uint256 answerId, uint8 actor, uint8 guess, bytes32 handle)',
   'function ledgerLength(uint256 tableId) view returns (uint256)',
   'function nextTable() view returns (uint256)',
   'function ledger(uint256 tableId, uint256 i) view returns (uint8 asker, uint8 responder, uint8 queryMask, bool modeAll, bool answered, bool claim, uint8 phrasing, uint64 askedAt, uint32 elapsed, bytes32 truth, bool audited, bool wasLie)',
@@ -55,6 +56,7 @@ const PHASE = ['Open', 'Playing', 'AwaitingAccusation', 'AwaitingDeclaration', '
 function ethersWalletClient(wallet) {
   return {
     account: { address: wallet.address },
+    transport: { url: 'UNUSED IN TEST' },
     signTypedData: async payload => {
       const types = { ...payload.types };
       delete types.EIP712Domain;
@@ -63,15 +65,40 @@ function ethersWalletClient(wallet) {
   };
 }
 
-async function decryptHandle(zap, wallet, cache, handle) {
-  if (typeof zap.attestedDecrypt === 'function') {
-    return zap.attestedDecrypt({ handle, walletClient: wallet });
-  }
-  if (!cache.reencryptor) {
-    cache.reencryptor = await zap.getReencryptor(ethersWalletClient(wallet));
-  }
-  const plaintext = await cache.reencryptor({ handle });
-  return plaintext?.value ?? plaintext;
+function hexFromBytes(bytes) {
+  if (typeof bytes === 'string') return bytes;
+  return `0x${Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function valueToBytes32(value) {
+  const raw = value && typeof value === 'object' && 'value' in value ? value.value : value;
+  const n = typeof raw === 'boolean' ? (raw ? 1n : 0n) : BigInt(raw);
+  return `0x${n.toString(16).padStart(64, '0')}`;
+}
+
+function attestationForSolidity(attestation) {
+  return {
+    decryption: {
+      handle: attestation.handle,
+      value: valueToBytes32(attestation.plaintext ?? attestation.value),
+    },
+    signatures: (attestation.covalidatorSignatures ?? attestation.signatures ?? []).map(hexFromBytes),
+  };
+}
+
+function plaintextValue(attestation) {
+  const plaintext = attestation?.plaintext ?? attestation;
+  return plaintext && typeof plaintext === 'object' && 'value' in plaintext ? plaintext.value : plaintext;
+}
+
+async function decryptHandle(zap, wallet, handle) {
+  const [attestation] = await zap.attestedDecrypt(ethersWalletClient(wallet), [handle]);
+  return plaintextValue(attestation);
+}
+
+async function revealHandle(zap, handle) {
+  const [attestation] = await zap.attestedReveal([handle]);
+  return attestationForSolidity(attestation);
 }
 
 /** A liar takes longer, but not reliably. That unreliability is the game. */
@@ -92,7 +119,6 @@ export class Keeper {
     this.game = this.wallets.map(w => new ethers.Contract(ADDRESS, ABI, w));
     this.read = new ethers.Contract(ADDRESS, ABI, this.provider);
     this.zap = Lightning.latest(INCO_ENV, Number(process.env.CHAIN_ID || 84532));
-    this.decryptCache = Array.from({ length: 5 }, () => ({}));
     this.bots = null;
     this.tableId = null;
     this.running = true;
@@ -206,7 +232,7 @@ export class Keeper {
     for (let seat = 0; seat < 5; seat++) {
       const viewer = (seat + 1) % 5;                 // anybody but the owner
       const [idHandle] = await this.read.seatCard(this.tableId, seat);
-      const id = await decryptHandle(this.zap, this.wallets[viewer], this.decryptCache[viewer], idHandle);
+      const id = await decryptHandle(this.zap, this.wallets[viewer], idHandle);
       cards.push(Number(id));
     }
     return cards;
@@ -248,8 +274,7 @@ export class Keeper {
 
     // A reveal is pending: post the attestation so the room can carry on.
     if (phase === 'AwaitingAccusation' || phase === 'AwaitingDeclaration') {
-      this.log(`  ${phase} pending — waiting for Inco callback`);
-      await wait(3000);
+      await this.settlePending(phase);
       return;
     }
 
@@ -302,10 +327,13 @@ export class Keeper {
     this.log(`  seat ${me} asks: ${describeQuery(q.queryMask, q.modeAll)}`);
   }
 
-  /** Reveal settlement is callback-driven in current @inco/lightning. */
+  /** Reveal settlement is attestation-driven in current @inco/lightning. */
   async settlePending(phase) {
-    this.log(`  ${phase} pending — waiting for Inco callback`);
-    await wait(3000);
+    const pending = await this.read.pendingReveal(this.tableId);
+    const { decryption, signatures } = await revealHandle(this.zap, pending.handle);
+    const fn = phase === 'AwaitingAccusation' ? 'settleAccusation' : 'settleDeclaration';
+    await this.send(0, fn, [this.tableId, decryption, signatures]);
+    this.log(`  ${phase} settled`);
   }
 
   async run() {

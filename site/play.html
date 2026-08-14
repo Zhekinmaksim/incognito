@@ -560,7 +560,7 @@ async function startPlaying() {
   $('chainWho').textContent = conn.address.slice(0, 6) + '…' + conn.address.slice(-4);
 
   // Inco's client needs the same wallet to prove you may read a card.
-  const { Lightning } = await import('https://esm.sh/@inco/js@latest/lite');
+  const { Lightning } = await import('https://esm.sh/@inco/js@0.7.12-testnet/lite');
   const zap = Lightning.latest(CHAIN.chainId === 8453 ? 'mainnet' : 'testnet', CHAIN.chainId);
 
   note('finding you a seat…');

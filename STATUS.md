@@ -5,12 +5,17 @@ what is easiest.
 
 ---
 
-## Nothing here has met a chain
+## What has met a chain, and what has not
 
-This is the honest headline. The contract compiles to 10,587 bytes and every
-call it exposes has been driven against a fake, but it has never been deployed,
-and the keeper has never spoken to a node. Everything below the first heading
-assumes that changes.
+The first Base Sepolia deployment proved that the table can open, fill five
+seats and reach `Playing`. That contract used the old Inco SDK and then stalled
+when the keeper tried to decrypt a card through the retired KMS endpoint.
+
+The code now targets `@inco/js@0.7.12-testnet` and
+`@inco/lightning@0.7.12-testnet`: card reads use `attestedDecrypt`, and
+accusations or declarations are settled by posting `attestedReveal`
+attestations back to the contract. This compiles and passes the local harness,
+but the upgraded contract has not yet been redeployed on Base Sepolia.
 
 ### 1. Deploy and find out what breaks
 
@@ -20,24 +25,22 @@ npm run deploy
 
 Three things are worth watching, in order of how badly they would hurt:
 
-**Does `e.shr` accept an encrypted shift?** The whole roster lookup is three
-operations because the sixteen masks are packed into one `uint256` and indexed
-by shifting it by an encrypted amount. The library exposes `shr(uint256, euint256)`,
-which is why the contract compiles, but compiling is not executing. If it fails
-at runtime the fallback is `Σ MASK[i] · (id == i)` over sixteen terms — correct,
-about forty-eight Inco operations instead of three, and only ever called once
-per player, so it is affordable. Budget an hour.
+**Does the new Lightning executor run the same roster path?** The old deployed
+contract reached `Playing`, which strongly suggests `e.shr(uint256, euint256)`
+works on chain. The new package points at a different testnet executor, so this
+still needs one fresh deal before calling it proven.
 
 **What does a deal cost?** Five encrypted random draws, encrypted collision
 repair, five roster lookups and the access grants, paid out of the contract's
-own balance. `deploy.js` funds it with 0.02 ETH as a guess. Measure the real
-number and put it in the README, because a contract at zero stops dealing and
-the failure surfaces as an unrelated revert.
+own balance. At the current testnet `inco.getFee()` of `0.0001 ETH`, a deal
+needs at least `0.0005 ETH` before gas and future tables. `deploy.js` now funds
+`0.002 ETH` by default. Measure the real burn on the new deployment and put it
+in the README, because a contract at zero stops dealing and the failure
+surfaces as an unrelated revert.
 
-**Can a seat decrypt its own card?** It must not be able to. The test exists
-(`test/Incognito.test.ts`) and has never run, because it needs live
-covalidators — a local EVM cannot answer the question. If this one fails there
-is no game, so run it first.
+**Can a seat decrypt its own card?** It must not be able to. The local test
+exists (`test/Incognito.test.ts`), but the real answer needs live covalidators.
+If this one fails there is no game, so run it first after redeploy.
 
 ### 2. The keeper
 
@@ -47,10 +50,11 @@ fly secrets set RPC_URL=… CONTRACT=0x… KEEPER_KEYS=0x…,0x…,0x…,0x…,0
 fly deploy
 ```
 
-Untested against a node. Card reads use `getReencryptor`, and accusations or
-declarations use Inco's decryption callback path. Expect to spend time on the
-reveal round-trip specifically: it is asynchronous, the contract waits in
-`AwaitingAccusation` or `AwaitingDeclaration` until the callback lands.
+Tested against a node only up to the old SDK failure. Card reads now use
+`attestedDecrypt`, and accusations or declarations use `attestedReveal` plus
+`settleAccusation` / `settleDeclaration`. Expect to spend time on this round
+trip specifically: the contract waits in `AwaitingAccusation` or
+`AwaitingDeclaration` until the keeper posts a valid attestation.
 
 One machine, always. `fly.toml` pins it. The keeper owns the nonces for five
 wallets and a second copy would spend them twice.

@@ -27,6 +27,40 @@ describe("Incognito", () => {
     await game.waitForDeployment();
   });
 
+  function walletClient(signer: any) {
+    return {
+      account: { address: signer.address },
+      transport: { url: "UNUSED IN TEST" },
+      signTypedData: async (payload: any) => {
+        const types = { ...payload.types };
+        delete types.EIP712Domain;
+        return signer.signTypedData(payload.domain, types, payload.message);
+      },
+    };
+  }
+
+  function plaintextValue(attestation: any) {
+    const plaintext = attestation?.plaintext ?? attestation;
+    return plaintext && typeof plaintext === "object" && "value" in plaintext ? plaintext.value : plaintext;
+  }
+
+  async function decrypt(handle: string, signer: any) {
+    const [attestation] = await zap.attestedDecrypt(walletClient(signer), [handle]);
+    return plaintextValue(attestation);
+  }
+
+  async function reveal(handle: string) {
+    const [attestation] = await zap.attestedReveal([handle]);
+    const raw = attestation.plaintext?.value ?? attestation.value;
+    const n = typeof raw === "boolean" ? (raw ? 1n : 0n) : BigInt(raw);
+    return {
+      decryption: { handle: attestation.handle, value: `0x${n.toString(16).padStart(64, "0")}` },
+      signatures: (attestation.covalidatorSignatures ?? attestation.signatures).map((s: Uint8Array | string) =>
+        typeof s === "string" ? s : `0x${Array.from(s, b => b.toString(16).padStart(2, "0")).join("")}`
+      ),
+    };
+  }
+
   async function seatEveryone() {
     await game.connect(players[0]).openTable({ value: hre.ethers.parseEther("0.05") });
     for (let i = 1; i < 5; i++) await game.connect(players[i]).sit(0);
@@ -35,7 +69,7 @@ describe("Incognito", () => {
 
   async function cardOf(tableId: number, seat: number, asWallet: any) {
     const [id] = await game.seatCard(tableId, seat);
-    return zap.attestedDecrypt({ handle: id, walletClient: asWallet });
+    return decrypt(id, asWallet);
   }
 
   // -------------------------------------------------------------------
@@ -77,8 +111,8 @@ describe("Incognito", () => {
     for (let seat = 0; seat < 5; seat++) {
       const viewer = (seat + 1) % 5;
       const [id, mask] = await game.seatCard(t, seat);
-      const idVal = Number(await zap.attestedDecrypt({ handle: id, walletClient: players[viewer] }));
-      const maskVal = Number(await zap.attestedDecrypt({ handle: mask, walletClient: players[viewer] }));
+      const idVal = Number(await decrypt(id, players[viewer]));
+      const maskVal = Number(await decrypt(mask, players[viewer]));
       expect(maskVal, `${AGENTS[idVal]}`).to.equal(MASKS[idVal]);
     }
   });
@@ -97,7 +131,7 @@ describe("Incognito", () => {
     const entry = await game.ledger(t, 0);
     for (let i = 0; i < 5; i++) {
       await expect(
-        zap.attestedDecrypt({ handle: entry.truth, walletClient: players[i] })
+        decrypt(entry.truth, players[i])
       ).to.be.rejected;
     }
   });
@@ -126,7 +160,7 @@ describe("Incognito", () => {
     const responder = Number(r);
 
     const [, maskH] = await game.seatCard(t, asker);
-    const mask = Number(await zap.attestedDecrypt({ handle: maskH, walletClient: players[responder] }));
+    const mask = Number(await decrypt(maskH, players[responder]));
     const honest = (mask & SCAR) !== 0;
 
     await game.connect(players[responder]).respond(t, !honest, 0);
@@ -137,8 +171,8 @@ describe("Incognito", () => {
 
     // keeper posts the attestation
     const entry = await game.ledger(t, 0);
-    const att = await zap.attestedReveal({ handle: entry.truth });
-    await expect(game.settleAccusation(t, att.value, att.signatures))
+    const att = await reveal(entry.truth);
+    await expect(game.settleAccusation(t, att.decryption, att.signatures))
       .to.emit(game, "Verdict").withArgs(t, 0, true, responder);
 
     expect(await game.glasses(players[accuser].address)).to.equal(before - 1n);
@@ -153,15 +187,15 @@ describe("Incognito", () => {
     const responder = Number(r);
 
     const [, maskH] = await game.seatCard(t, asker);
-    const mask = Number(await zap.attestedDecrypt({ handle: maskH, walletClient: players[responder] }));
+    const mask = Number(await decrypt(maskH, players[responder]));
     await game.connect(players[responder]).respond(t, (mask & BEARD) !== 0, 0);
 
     const accuser = [0, 1, 2, 3, 4].find((i) => i !== responder)!;
     await game.connect(players[accuser]).accuse(t, 0);
     const entry = await game.ledger(t, 0);
-    const att = await zap.attestedReveal({ handle: entry.truth });
+    const att = await reveal(entry.truth);
 
-    await expect(game.settleAccusation(t, att.value, att.signatures))
+    await expect(game.settleAccusation(t, att.decryption, att.signatures))
       .to.emit(game, "Eliminated").withArgs(t, accuser);
   });
 

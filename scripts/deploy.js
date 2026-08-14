@@ -15,10 +15,14 @@ async function main() {
   console.log('Incognito deployed at', addr);
 
   // The contract pays Inco per operation, so it needs a float to deal from.
-  const fund = process.env.FUND_ETH || '0.02';
-  const tx = await deployer.sendTransaction({ to: addr, value: hre.ethers.parseEther(fund) });
-  await tx.wait();
-  console.log(`funded with ${fund} ETH for shuffle and per-op fees`);
+  const fund = process.env.FUND_ETH || '0.002';
+  if (fund !== '0') {
+    const tx = await deployer.sendTransaction({ to: addr, value: hre.ethers.parseEther(fund) });
+    await tx.wait();
+    console.log(`funded with ${fund} ETH for shuffle and per-op fees`);
+  } else {
+    console.log('not funded; send ETH to the contract before opening a table');
+  }
 
   console.log('\nnext:');
   console.log(`  CONTRACT=${addr} npm run keeper`);

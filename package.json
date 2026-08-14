@@ -15,13 +15,13 @@
     "playtest": "node test/playtest.mjs"
   },
   "dependencies": {
-    "@inco/lightning": "^0.1.0",
-    "@inco/js": "^0.1.0",
-    "ethers": "^6.13.0",
-    "dotenv": "^16.4.5"
+    "@inco/js": "0.7.12-testnet",
+    "@inco/lightning": "0.7.12-testnet",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.0"
   },
   "devDependencies": {
-    "hardhat": "^2.22.0",
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0"
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0"
   }
 }

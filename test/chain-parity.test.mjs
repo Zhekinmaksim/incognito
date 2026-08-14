@@ -41,7 +41,10 @@ function fakeChain({ seat = 0 } = {}) {
   };
 }
 
-const zap = { attestedDecrypt: async ({ handle }) => Number(handle.slice(-1)) + 1 };
+const zap = {
+  attestedDecrypt: async (_walletClient, handles) =>
+    handles.map(handle => ({ handle, plaintext: { value: BigInt(Number(handle.slice(-1)) + 1) } })),
+};
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { cond ? pass++ : (fail++, console.log('  FAIL', name)); };

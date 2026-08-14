@@ -11,7 +11,9 @@ npm run deploy            # Base Sepolia
 The deploy script funds the contract afterwards. That float is not optional:
 Inco charges per encrypted operation and the private deal at the start of every
 table is the most expensive thing the game does. A contract at zero stops
-dealing and the failure looks like an unrelated revert.
+dealing and the failure looks like an unrelated revert. The default float is
+`0.002 ETH`; override it with `FUND_ETH=... npm run deploy` if balances are
+tight or you want to pre-fund more.
 
 For mainnet, `npm run deploy:mainnet`. Same contract, with the Lightning
 deployment selected by the installed `@inco/lightning` package.

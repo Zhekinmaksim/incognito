@@ -119,6 +119,7 @@ async function readState(contract, tableId) {
 function ethersWalletClient(signer, address) {
   return {
     account: { address },
+    transport: { url: 'UNUSED IN TEST' },
     signTypedData: async payload => {
       const types = { ...payload.types };
       delete types.EIP712Domain;
@@ -127,15 +128,14 @@ function ethersWalletClient(signer, address) {
   };
 }
 
-async function decryptHandle(zap, signer, address, cache, handle) {
-  if (typeof zap.attestedDecrypt === 'function') {
-    return zap.attestedDecrypt({ handle, walletClient: signer });
-  }
-  if (!cache.reencryptor) {
-    cache.reencryptor = await zap.getReencryptor(ethersWalletClient(signer, address));
-  }
-  const plaintext = await cache.reencryptor({ handle });
-  return plaintext?.value ?? plaintext;
+function plaintextValue(attestation) {
+  const plaintext = attestation?.plaintext ?? attestation;
+  return plaintext && typeof plaintext === 'object' && 'value' in plaintext ? plaintext.value : plaintext;
+}
+
+async function decryptHandle(zap, signer, address, handle) {
+  const [attestation] = await zap.attestedDecrypt(ethersWalletClient(signer, address), [handle]);
+  return plaintextValue(attestation);
 }
 
 /* -------------------------------------------------------------- the observer */
@@ -221,7 +221,6 @@ export function createChainSession({
   let glasses = 0;
   let timer = null;
   let dealtSent = false;
-  const decryptCache = {};
 
   const emit = (type, data = {}) => onEvent({ type, ...data });
 
@@ -245,7 +244,7 @@ export function createChainSession({
     for (let s = 0; s < SEATS; s++) {
       if (s === seat) continue;
       const [idHandle] = await contract.seatCard(tableId, s);
-      const id = await decryptHandle(zap, signer, address, decryptCache, idHandle);
+      const id = await decryptHandle(zap, signer, address, idHandle);
       next[s] = Number(id);
     }
     cards = next;
