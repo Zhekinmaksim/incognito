@@ -1,8 +1,8 @@
 {
+  "buildCommand": "echo static site",
+  "outputDirectory": "site",
   "rewrites": [
-    { "source": "/", "destination": "/site/index.html" },
-    { "source": "/play", "destination": "/site/play.html" },
-    { "source": "/game/:path*", "destination": "/site/game/:path*" },
-    { "source": "/audio/:path*", "destination": "/site/audio/:path*" }
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/play", "destination": "/play.html" }
   ]
 }
