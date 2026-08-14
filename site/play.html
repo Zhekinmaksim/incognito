@@ -288,7 +288,7 @@ function drawTab() {
 }
 
 function drawTable(speaking = -1) {
-  $('table').innerHTML = S.seats.map(seat => {
+  $('table').innerHTML = S.state.seats.map(seat => {
     const out = !S.state.alive[seat];
     if (seat === 0) {
       return `<div class="seat you${out ? ' out' : ''}${speaking === 0 ? ' speaking' : ''}">
