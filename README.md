@@ -62,8 +62,9 @@ npm run deploy       # Base Sepolia; deploy:mainnet for Base
 ```
 
 The playable screen is `site/play.html` — open it and it deals immediately, no
-wallet, no node, no server. `site/index.html` is the landing page; both are
-single files with their artwork inlined.
+wallet, no node, no server. `site/index.html` is the landing page; the core
+page artwork is inlined, while the favicon and social preview are served as
+standard cacheable assets.
 
 ## Layout
 

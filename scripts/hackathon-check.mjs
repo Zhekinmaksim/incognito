@@ -62,7 +62,7 @@ ok.message = '.env must never be tracked';
 ok(!tracked.includes('.env'));
 
 const executableText = tracked
-  .filter(path => /\.(?:html|js|mjs|ts|tsx|sol)$/.test(path))
+  .filter(path => path !== 'scripts/hackathon-check.mjs' && /\.(?:html|js|mjs|ts|tsx|sol)$/.test(path))
   .map(path => text(path))
   .join('\n');
 for (const stale of ['Lib.testnet.sol', "Lightning.latest('testnet', 84532)", 'playincognito.xyz']) {
