@@ -85,13 +85,13 @@ imported from esm.sh and may need bundling instead.
 
 ## Known holes, with the reasoning
 
-**The hesitation is client-reported.** The contract cannot measure a pause: it
-sees `block.timestamp - askedAt`, which on Base is two-second blocks plus your
-thinking, and the two are indistinguishable. So the client measures and submits
-it. On a testnet with toy stakes this is fine. On mainnet it is a hole — a
-player can claim any number and never look nervous. The fix is to take the
-minimum of the claimed value and what the chain observed, which keeps an honest
-client honest and caps a dishonest one. Twenty minutes of work, not done.
+**The hesitation is block-time reported.** The contract records
+`block.timestamp - askedAt` when the responder submits. On Base this includes
+network delay and the human pause, so it is a useful tell but not a precise
+stopwatch. A responder cannot submit an arbitrary elapsed value, but a delayed
+transaction can still make an honest answer look slow. For the testnet demo
+this tradeoff is intentional; a production version would need a commit/reveal
+timing scheme or an off-chain signed timer.
 
 **`_win` reveals the whole ledger in a loop.** Declassification walks every
 unaudited answer and reveals it. On a long game that will run out of gas. Cap
@@ -135,10 +135,10 @@ somebody wants to play twice. It deserves a day it did not get.
 
 ## Before submitting
 
-- [ ] Public URL where the landing page and `play.html` both work
+- [x] Public URL where the landing page and `play.html` both work
 - [ ] Demo video, recorded in watch mode
-- [ ] Contract address and explorer link in the README
-- [ ] Pre-existing work disclosed — the section exists in the README, check it is accurate
+- [x] Contract address and explorer link in the README
+- [x] Pre-existing work disclosed in the README
 - [ ] Confirm the jam's rules on music in submitted video
 
 ## If there is only an hour

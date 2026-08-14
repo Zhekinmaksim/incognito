@@ -120,6 +120,7 @@ function ethersWalletClient(signer, address) {
   return {
     account: { address },
     transport: { url: 'UNUSED IN TEST' },
+    request: async ({ method, params }) => signer.provider.send(method, params || []),
     signTypedData: async payload => {
       const types = { ...payload.types };
       delete types.EIP712Domain;

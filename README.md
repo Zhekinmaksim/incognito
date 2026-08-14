@@ -6,6 +6,16 @@ the house picks to answer is free to lie to your face.
 
 Built for the Inco Summer Game Jam.
 
+## Live
+
+- Landing page: https://incognito-sage-seven.vercel.app/
+- Play screen: https://incognito-sage-seven.vercel.app/play
+- Keeper status: https://incognito-keeper.fly.dev/status
+- Base Sepolia contract: [0x9Abd9714FdF0f10967C4e028EdB40af4de827456](https://sepolia.basescan.org/address/0x9Abd9714FdF0f10967C4e028EdB40af4de827456)
+
+The browser screen defaults to this Base Sepolia deployment and uses the
+DeFy'26 Inco path: `Lib.sol` plus `Lightning.baseSepoliaTestnet()`.
+
 ---
 
 ## The three things that are confidential, and why each one matters
@@ -96,8 +106,7 @@ accusing strictly bad and nobody would ever have pressed the button.
 
 ## Pre-existing work
 
-The jam rules require disclosure. The confidential-compute patterns here follow
-Inco's own documentation and the `ConfidentialDeck` reference, and the shuffle
-comes from their template. The one thing changed is the direction of the access
-grant. Everything else — contract, roster, bots, screens, artwork, copy — was
-written for this jam.
+The jam rules require disclosure. The confidential-compute patterns and SDK
+setup follow Inco's documentation, `ConfidentialDeck` reference and official
+Base Sepolia starter template. The game contract, encrypted collision-repaired
+deal, roster, bots, screens, artwork and copy were written for this jam.

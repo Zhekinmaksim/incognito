@@ -23,14 +23,29 @@ deployment selected by the installed `@inco/lightning` package.
 Five wallets, one per seat. They need gas, not much of it, and they need to be
 five distinct keys — the game refuses to seat the same address twice.
 
+Run these commands from the application directory. The repository is nested
+under `incognito/`; running `fly deploy` from its parent produces a misleading
+"missing app name" error because Fly cannot see this `fly.toml`.
+
 ```bash
-fly launch --no-deploy --name incognito-keeper
+cd /Users/zmaxx/Projects/INCOgnito/incognito
 fly secrets set \
   RPC_URL=https://sepolia.base.org \
-  CONTRACT=0x... \
-  KEEPER_KEYS=0x..,0x..,0x..,0x..,0x.. \
-  DEPLOYER_KEY=0x...
+  CHAIN_ID=84532 \
+  INCO_ENV=testnet \
+  CONTRACT=0x9Abd9714FdF0f10967C4e028EdB40af4de827456 \
+  KEEPER_KEYS=0x..,0x..,0x..,0x..,0x..
 fly deploy
+```
+
+The deployer private key is not needed by the keeper and must not be uploaded
+to Fly. Keep it only in the local `.env` used by `npm run deploy`.
+
+From the parent directory, use the explicit app and project path instead:
+
+```bash
+fly secrets set -a incognito-keeper CONTRACT=0x9Abd9714FdF0f10967C4e028EdB40af4de827456
+fly deploy ./incognito -a incognito-keeper
 ```
 
 Then watch it think:
