@@ -107,14 +107,46 @@ function describeError(err, depth = 0) {
   return cause && cause !== head ? `${head} :: ${cause}` : head;
 }
 
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+function ciphertextPending(err) {
+  const message = describeError(err).toLowerCase();
+  return message.includes('not found')
+    || message.includes('not have been processed yet')
+    || message.includes('cannot reach threshold')
+    || message.includes("cannot read properties of null");
+}
+
+async function waitForCiphertext(label, operation) {
+  const attempts = Number(process.env.INCO_RETRY_ATTEMPTS || 12);
+  const baseDelay = Number(process.env.INCO_RETRY_MS || 5000);
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (!ciphertextPending(err) || attempt === attempts) throw err;
+      const delay = Math.min(baseDelay * attempt, 15000);
+      console.log(`${new Date().toISOString().slice(11, 19)} Inco ${label} pending; retry ${attempt}/${attempts} in ${delay}ms`);
+      await wait(delay);
+    }
+  }
+  throw lastError;
+}
+
 async function decryptHandle(zap, wallet, handle) {
-  const [attestation] = await zap.attestedDecrypt(ethersWalletClient(wallet), [handle]);
-  return plaintextValue(attestation);
+  return waitForCiphertext('decrypt', async () => {
+    const [attestation] = await zap.attestedDecrypt(ethersWalletClient(wallet), [handle]);
+    return plaintextValue(attestation);
+  });
 }
 
 async function revealHandle(zap, handle) {
-  const [attestation] = await zap.attestedReveal([handle]);
-  return attestationForSolidity(attestation);
+  return waitForCiphertext('reveal', async () => {
+    const [attestation] = await zap.attestedReveal([handle]);
+    return attestationForSolidity(attestation);
+  });
 }
 
 /** A liar takes longer, but not reliably. That unreliability is the game. */
@@ -124,7 +156,6 @@ function hesitation(lying) {
     : (Math.random() < 0.15 ? 3000 + Math.random() * 2000 : 700 + Math.random() * 1000);
   return Math.round(base);
 }
-const wait = ms => new Promise(r => setTimeout(r, ms));
 
 export class Keeper {
   constructor() {
