@@ -14,6 +14,7 @@ primary_region = "fra"
   INCO_ENV = "testnet"
   CHAIN_ID = "84532"
   STALL_MS = "300000"
+  TABLE_FUND_ETH = "0"
 
 [http_service]
   internal_port = 8080

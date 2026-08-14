@@ -25,6 +25,7 @@ const RPC = process.env.RPC_URL;
 const ADDRESS = process.env.CONTRACT;
 const KEYS = (process.env.KEEPER_KEYS || '').split(',').map(k => k.trim()).filter(Boolean);
 const INCO_ENV = process.env.INCO_ENV || 'testnet';
+const TABLE_FUND = process.env.TABLE_FUND_ETH || '0';
 
 const ABI = [
   'function openTable() payable returns (uint256)',
@@ -154,7 +155,8 @@ export class Keeper {
 
   /** Open a table and fill every seat. */
   async openTable() {
-    const rc = await this.send(0, 'openTable', [], { value: ethers.parseEther('0.02') });
+    const seatValue = ethers.parseEther(TABLE_FUND);
+    const rc = await this.send(0, 'openTable', [], { value: seatValue });
     this.tableId = 0n;
     for (const ev of rc.logs) {
       try {
@@ -164,7 +166,7 @@ export class Keeper {
     }
     this.log(`table ${this.tableId} opened by seat 0`);
     for (let s = 1; s < 5; s++) {
-      await this.send(s, 'sit', [this.tableId], { value: ethers.parseEther('0.02') });
+      await this.send(s, 'sit', [this.tableId], { value: seatValue });
       this.log(`seat ${s} sat down`);
     }
   }
