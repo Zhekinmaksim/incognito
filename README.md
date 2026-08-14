@@ -56,6 +56,7 @@ npm install
 npm run sim          # a thousand games, and what kind of game they are
 npm run watch        # one night, narrated turn by turn
 npm run test:logic   # the interface, the call sequences, the phrasing
+npm run check:hackathon # submission files, metadata, assets and Inco configuration
 npm run build        # compile the contract
 npm run deploy       # Base Sepolia; deploy:mainnet for Base
 ```
@@ -76,6 +77,7 @@ game/chain.js             the same game against a deployed contract
 game/iface.js             what the screen is allowed to know
 keeper/                   the house table: five wallets, one process
 site/                     landing page and the playable screen
+remotion/                 30-second hackathon film source
 test/                     the suites behind every claim in this file
 ```
 

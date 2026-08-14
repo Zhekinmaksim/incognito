@@ -136,10 +136,14 @@ somebody wants to play twice. It deserves a day it did not get.
 ## Before submitting
 
 - [x] Public URL where the landing page and `play.html` both work
-- [ ] Demo video, recorded in watch mode
+- [x] Demo video source and a 30-second local render
+- [ ] Re-render after the final-card URL correction, upload it and add its public submission URL
 - [x] Contract address and explorer link in the README
 - [x] Pre-existing work disclosed in the README
+- [x] Favicon, 1200x630 OG card, canonical URLs and social metadata
+- [x] Automated `npm run check:hackathon` submission audit
 - [ ] Confirm the jam's rules on music in submitted video
+- [ ] Choose and add an explicit repository license if the submission form requires one
 
 ## If there is only an hour
 

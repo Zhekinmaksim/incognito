@@ -126,7 +126,7 @@ function Verdict() {
 function End() {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, 24], [0, 1], {extrapolateRight: 'clamp'});
-  return <Frame accent><div style={{position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity}}><div style={{...display, fontSize: 172, lineHeight: .8}}><span style={{color: C.gold}}>INCO</span>GNITO</div><div style={{...mono, color: C.paper, fontSize: 24, marginTop: 60}}>playincognito.xyz</div><div style={{height: 1, width: 500, background: C.gold, marginTop: 34}} /><div style={{...mono, color: C.dim, fontSize: 16, marginTop: 24}}>BUILT FOR THE INCO SUMMER GAME JAM</div></div></Frame>;
+  return <Frame accent><div style={{position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity}}><div style={{...display, fontSize: 172, lineHeight: .8}}><span style={{color: C.gold}}>INCO</span>GNITO</div><div style={{...mono, color: C.paper, fontSize: 24, marginTop: 60}}>incognito-sage-seven.vercel.app</div><div style={{height: 1, width: 500, background: C.gold, marginTop: 34}} /><div style={{...mono, color: C.dim, fontSize: 16, marginTop: 24}}>BUILT FOR THE INCO SUMMER GAME JAM</div></div></Frame>;
 }
 
 export const Film: React.FC = () => {

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://incognito-sage-seven.vercel.app/sitemap.xml

@@ -1,0 +1,16 @@
+{
+  "name": "INCOgnito",
+  "short_name": "INCOgnito",
+  "description": "A five-seat confidential deduction game built on Inco Lightning.",
+  "start_url": "/play",
+  "display": "standalone",
+  "background_color": "#080706",
+  "theme_color": "#c99a2e",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
