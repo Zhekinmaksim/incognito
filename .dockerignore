@@ -1,0 +1,8 @@
+*
+!Dockerfile
+!package.json
+!package-lock.json
+!game/
+!game/**
+!keeper/
+!keeper/**
