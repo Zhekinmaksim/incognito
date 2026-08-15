@@ -48,6 +48,16 @@ for (const path of ['site/index.html', 'site/play.html']) {
     ok.message = `${path} is missing ${token}`;
     ok(page.includes(token));
   }
+  ok.message = `${path} must use the production domain in social metadata`;
+  ok(page.includes('https://playincognito.xyz/'));
+}
+
+const landing = text('site/index.html');
+ok.message = 'site/index.html must not embed base64 images';
+ok(!/data:image\/[^;]+;base64,/i.test(landing));
+for (const [, asset] of landing.matchAll(/src="(assets\/[^\"]+)"/g)) {
+  ok.message = `site/index.html references a missing asset: site/${asset}`;
+  ok(existsSync(resolve(root, 'site', asset)));
 }
 
 const png = readFileSync(resolve(root, 'site/og-card.png'));
@@ -69,7 +79,7 @@ const executableText = tracked
   .filter(path => path !== 'scripts/hackathon-check.mjs' && /\.(?:html|js|mjs|ts|tsx|sol)$/.test(path))
   .map(path => text(path))
   .join('\n');
-for (const stale of ['Lib.testnet.sol', "Lightning.latest('testnet', 84532)", 'playincognito.xyz']) {
+for (const stale of ['Lib.testnet.sol', "Lightning.latest('testnet', 84532)", 'incognito-sage-seven.vercel.app']) {
   ok.message = `stale submission value remains in executable files: ${stale}`;
   ok(!executableText.includes(stale));
 }

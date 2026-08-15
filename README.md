@@ -8,8 +8,8 @@ Built for the Inco Summer Game Jam.
 
 ## Live
 
-- Landing page: https://incognito-sage-seven.vercel.app/
-- Play screen: https://incognito-sage-seven.vercel.app/play
+- Landing page: https://playincognito.xyz/
+- Play screen: https://playincognito.xyz/play
 - Keeper status: https://incognito-keeper.fly.dev/status
 - Base Sepolia contract: [0x9Abd9714FdF0f10967C4e028EdB40af4de827456](https://sepolia.basescan.org/address/0x9Abd9714FdF0f10967C4e028EdB40af4de827456)
 

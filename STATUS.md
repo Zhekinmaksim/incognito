@@ -141,6 +141,8 @@ somebody wants to play twice. It deserves a day it did not get.
 - [x] Contract address and explorer link in the README
 - [x] Pre-existing work disclosed in the README
 - [x] Favicon, 1200x630 OG card, canonical URLs and social metadata
+- [x] Production metadata and sitemap use `playincognito.xyz`
+- [x] Landing portraits are cacheable image assets instead of inline base64
 - [x] Automated `npm run check:hackathon` submission audit
 - [ ] Confirm the jam's rules on music in submitted video
 - [x] Add an explicit repository license (MIT)
