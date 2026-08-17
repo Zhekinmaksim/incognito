@@ -637,8 +637,15 @@ async function startPlaying() {
   const conn = await connectWallet(CHAIN.chainId);
   if (!conn.ok) { busy = false; note(conn.why, 'error'); refreshChain(); return; }
   const m = await loadEthers();
-  const provider = new m.BrowserProvider(window.ethereum);
+  const provider = new m.BrowserProvider(conn.provider);
   const signer = await provider.getSigner();
+  const signerAddress = await signer.getAddress();
+  if (signerAddress.toLowerCase() !== conn.address.toLowerCase()) {
+    busy = false;
+    note('The selected wallet account changed. Connect again.', 'error');
+    refreshChain();
+    return;
+  }
   const contract = new m.Contract(CHAIN.address, ABI, signer);
   $('chainWho').textContent = conn.address.slice(0, 6) + '…' + conn.address.slice(-4);
   $('connect').textContent = 'retry open chair';
@@ -677,10 +684,14 @@ async function startPlaying() {
   const { tableId, seat } = place;
   $('chainWhat').textContent = `Seat ${seat + 1}. Every move is a transaction.`;
   chain = createChainSession({
-    contract, signer, zap, tableId, seat,
+    contract, signer, provider: conn.provider, zap, tableId, seat,
     address: conn.address,
     onEvent: ev => {
-      if (ev.type === 'notice') { note(ev.text, ev.text?.includes('waiting') ? 'loading' : ''); return; }
+      if (ev.type === 'notice') {
+        const decryptFailed = ev.text?.startsWith('Inco decrypt failed:');
+        note(ev.text, decryptFailed ? 'error' : (ev.text?.includes('waiting') ? 'loading' : ''));
+        return;
+      }
       if (ev.type === 'asked') {
         const pending = chain?.pendingForYou();
         if (pending) {

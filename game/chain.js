@@ -43,12 +43,39 @@ export const CHAINS = {
   8453:  { name: 'Base',         hex: '0x2105',  rpc: 'https://mainnet.base.org', explorer: 'https://basescan.org' },
 };
 
+function providerLabel(entry) {
+  return `${entry.info?.rdns || ''} ${entry.info?.name || ''}`.toLowerCase();
+}
+
+/** Discover EIP-6963 wallets, then fall back to the legacy injected list. */
+export async function injectedProvider() {
+  const found = [];
+  const add = (provider, info = {}) => {
+    if (provider?.request && !found.some(entry => entry.provider === provider)) found.push({ provider, info });
+  };
+  const receive = event => add(event?.detail?.provider, event?.detail?.info);
+  if (globalThis.addEventListener && globalThis.dispatchEvent && globalThis.CustomEvent) {
+    globalThis.addEventListener('eip6963:announceProvider', receive);
+    globalThis.dispatchEvent(new CustomEvent('eip6963:requestProvider'));
+    await new Promise(resolve => setTimeout(resolve, 80));
+    globalThis.removeEventListener('eip6963:announceProvider', receive);
+  }
+  const legacy = globalThis.ethereum;
+  for (const provider of legacy?.providers || []) add(provider);
+  add(legacy);
+
+  return found.find(entry => entry.provider.isRabby || providerLabel(entry).includes('rabby'))?.provider
+    || found.find(entry => entry.provider.isMetaMask && !entry.provider.isPhantom)?.provider
+    || found.find(entry => !entry.provider.isPhantom)?.provider
+    || found[0]?.provider;
+}
+
 /**
  * Ask for an account, then make sure it is on the right chain. Both steps can
  * be refused, and refusal is a normal answer — so neither throws past here.
  */
 export async function connectWallet(chainId) {
-  const eth = globalThis.ethereum;
+  const eth = await injectedProvider();
   if (!eth) return fail('No wallet in this browser. The table upstairs plays without one.');
 
   try {
@@ -76,7 +103,7 @@ export async function connectWallet(chainId) {
         }
       }
     }
-    return done({ address: accounts[0] });
+    return done({ address: accounts[0], provider: eth });
   } catch (err) {
     return fail(readableError(err));
   }
@@ -122,11 +149,13 @@ async function readState(contract, tableId) {
   };
 }
 
-function ethersWalletClient(signer, address) {
+function ethersWalletClient(signer, address, provider) {
   return {
     account: { address },
     transport: { url: 'UNUSED IN TEST' },
-    request: async ({ method, params }) => signer.provider.send(method, params || []),
+    request: async ({ method, params }) => provider?.request
+      ? provider.request({ method, params: params || [] })
+      : signer.provider.send(method, params || []),
     signTypedData: async payload => {
       const types = { ...payload.types };
       delete types.EIP712Domain;
@@ -140,17 +169,33 @@ function plaintextValue(attestation) {
   return plaintext && typeof plaintext === 'object' && 'value' in plaintext ? plaintext.value : plaintext;
 }
 
-async function decryptHandles(zap, signer, address, handles) {
-  const walletClient = ethersWalletClient(signer, address);
+function errorDetail(err) {
+  const messages = [];
+  for (let current = err; current && messages.length < 4; current = current.cause) {
+    const message = current.shortMessage || current.message;
+    if (message && !messages.includes(message)) messages.push(message);
+  }
+  return messages.join(': ') || String(err);
+}
+
+async function decryptHandles(zap, signer, address, provider, handles) {
+  const walletClient = ethersWalletClient(signer, address, provider);
+  let batchError;
   try {
     const attestations = await zap.attestedDecrypt(walletClient, handles);
     if (attestations?.length === handles.length) return attestations.map(plaintextValue);
-  } catch { /* some Inco clients reject a fresh multi-handle request */ }
+  } catch (err) { batchError = err; /* some Inco clients reject a fresh multi-handle request */ }
 
   const values = [];
-  for (const handle of handles) {
-    const [attestation] = await zap.attestedDecrypt(walletClient, [handle]);
-    values.push(plaintextValue(attestation));
+  try {
+    for (const handle of handles) {
+      const [attestation] = await zap.attestedDecrypt(walletClient, [handle]);
+      values.push(plaintextValue(attestation));
+    }
+  } catch (err) {
+    const detail = errorDetail(err);
+    const batch = errorDetail(batchError);
+    throw new Error(`Inco decrypt failed: ${detail}${batch && batch !== detail ? ` (batch: ${batch})` : ''}`, { cause: err });
   }
   return values;
 }
@@ -231,7 +276,7 @@ export function createObserver({ contract, tableId, onEvent = () => {}, interval
  * too many — so they are fetched once, together, and cached for the round.
  */
 export function createChainSession({
-  contract, signer, zap, tableId, seat, address,
+  contract, signer, provider, zap, tableId, seat, address,
   onEvent = () => {}, interval = 3500,
 }) {
   let stopped = false;
@@ -269,7 +314,7 @@ export function createChainSession({
       seats.push(s);
       handles.push(idHandle);
     }
-    const ids = await decryptHandles(zap, signer, address, handles);
+    const ids = await decryptHandles(zap, signer, address, provider, handles);
     seats.forEach((cardSeat, index) => { next[cardSeat] = Number(ids[index]); });
     cards = next;
   }
@@ -305,8 +350,8 @@ export function createChainSession({
           await readCards();
           dealtSent = true;
           emit('dealt', { cards });
-        } catch {
-          emit('notice', { text: 'Cards are still being prepared by Inco. Retrying…' });
+        } catch (err) {
+          emit('notice', { text: errorDetail(err) });
         }
       }
       for (let i = 0; i < rows.length; i++) {

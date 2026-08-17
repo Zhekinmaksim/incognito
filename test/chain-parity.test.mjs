@@ -56,9 +56,10 @@ const zap = {
 };
 
 const signer = {
-  provider: { send: async (method) => { calls.push(method); return '0x14a34'; } },
+  provider: { send: async (method) => { calls.push(`fallback:${method}`); return '0x14a34'; } },
   signTypedData: async () => '0xsigned',
 };
+const injected = { request: async ({ method }) => { calls.push(`injected:${method}`); return '0x14a34'; } };
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { cond ? pass++ : (fail++, console.log('  FAIL', name)); };
@@ -71,13 +72,14 @@ check('bot cannot read its own card', keeperBot.knownIdOf(0) === null);
 const f = fakeChain({ seat: 0 });
 const events = [];
 const s = createChainSession({
-  contract: f.contract, signer, zap, tableId: 0n, seat: 0, address: '0xme',
+  contract: f.contract, signer, provider: injected, zap, tableId: 0n, seat: 0, address: '0xme',
   onEvent: e => events.push(e.type), interval: 30,
 });
 await sleep(120);
 
 check('dealt fired', events.includes('dealt'));
-check('Inco wallet client proxies RPC requests', calls.includes('eth_chainId'));
+check('Inco wallet client uses the selected injected provider', calls.includes('injected:eth_chainId'));
+check('Inco wallet client does not fall back to another provider', !calls.includes('fallback:eth_chainId'));
 check('four cards read, own seat left blank', s.view().cards.filter(c => c != null).length === 4 && s.view().cards[0] === null);
 check('multi-handle failure falls back to four single decryptions',
   decryptBatchSizes.join(',') === '4,1,1,1,1');
