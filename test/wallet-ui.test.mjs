@@ -11,6 +11,7 @@ const checks = [
   ['wallet ask reaches the chain session', page.includes('await chain.ask(picked, modeAll)')],
   ['wallet response reaches the chain session', page.includes('await chain.respond(claim, held)')],
   ['wallet declaration reaches the chain session', page.includes('await chain.declare(Number(c.dataset.id))')],
+  ['card decrypt requires an explicit wallet click', page.includes("$('connect').textContent = 'reveal the four cards'") && page.includes('await chain.decryptCards()')],
   ['local accusation handler is disabled outside local mode', page.includes("if (mode !== 'local') return;")],
   ['keeper leaves the fifth chair open', keeper.includes('const BOT_SEATS = 4;') && keeper.includes('s < BOT_SEATS')],
   ['keeper migrates away from the legacy five-bot table', keeper.includes('leaving legacy all-bot table')],

@@ -77,7 +77,10 @@ const s = createChainSession({
 });
 await sleep(120);
 
-check('dealt fired', events.includes('dealt'));
+check('cards wait for an explicit wallet action', !events.includes('dealt'));
+const decryptResult = await s.decryptCards();
+
+check('dealt fired after the explicit wallet action', decryptResult.ok && events.includes('dealt'));
 check('Inco wallet client uses the selected injected provider', calls.includes('injected:eth_chainId'));
 check('Inco wallet client does not fall back to another provider', !calls.includes('fallback:eth_chainId'));
 check('four cards read, own seat left blank', s.view().cards.filter(c => c != null).length === 4 && s.view().cards[0] === null);

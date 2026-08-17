@@ -692,6 +692,10 @@ async function startPlaying() {
         note(ev.text, decryptFailed ? 'error' : (ev.text?.includes('waiting') ? 'loading' : ''));
         return;
       }
+      if (ev.type === 'dealt') {
+        $('connect').style.display = 'none';
+        note('The four permitted cards are decrypted.', 'success');
+      }
       if (ev.type === 'asked') {
         const pending = chain?.pendingForYou();
         if (pending) {
@@ -708,9 +712,10 @@ async function startPlaying() {
     },
   });
   busy = false;
-  $('connect').style.display = 'none';
+  $('connect').textContent = 'reveal the four cards';
+  $('connect').style.display = 'inline-block';
   stage('Seat confirmed', `You are at table ${tableId}`, '', 'Reading the four cards everyone except their owner may see.');
-  note(`Seated at table ${tableId}. Wallet moves are now on chain.`, 'success');
+  note('Seat confirmed. Reveal the four cards with an Inco wallet signature.', 'success');
   refreshChain();
 }
 
@@ -809,7 +814,16 @@ $('modebar').addEventListener('click', e => {
   const b = e.target.closest('.mb'); if (!b) return;
   setMode(b.dataset.mode);
 });
-$('connect').addEventListener('click', startPlaying);
+$('connect').addEventListener('click', async () => {
+  if (!chain?.decryptCards) return startPlaying();
+  if (busy) return;
+  busy = true;
+  note('Approve the Inco card signature in your wallet…', 'loading');
+  const result = await chain.decryptCards();
+  busy = false;
+  if (!result.ok) note(`Inco decrypt failed: ${result.why}`, 'error');
+  refreshChain();
+});
 $('ledger').addEventListener('click', async e => {
   const b = e.target.closest('[data-chaincall]'); if (!b || !chain) return;
   b.disabled = true;

@@ -271,9 +271,9 @@ export function createObserver({ contract, tableId, onEvent = () => {}, interval
 /**
  * A seat of your own.
  *
- * The four cards you are allowed to read take four decryptions, and each one
- * wants a signature. That is four wallet prompts at the deal, which is four
- * too many — so they are fetched once, together, and cached for the round.
+ * The four cards you are allowed to read take an attested decrypt signature.
+ * Wallet extensions only permit that signature from an explicit click, so the
+ * screen calls `decryptCards()` after the player chooses to reveal them.
  */
 export function createChainSession({
   contract, signer, provider, zap, tableId, seat, address,
@@ -286,6 +286,7 @@ export function createChainSession({
   let glasses = 0;
   let timer = null;
   let dealtSent = false;
+  let decrypting = false;
 
   const emit = (type, data = {}) => onEvent({ type, ...data });
 
@@ -319,6 +320,25 @@ export function createChainSession({
     cards = next;
   }
 
+  async function decryptCards() {
+    if (dealtSent) return done();
+    if (decrypting) return fail('The cards are already being decrypted.');
+    decrypting = true;
+    emit('notice', { text: 'Approve the Inco card signature in your wallet…' });
+    try {
+      await readCards();
+      dealtSent = true;
+      emit('dealt', { cards });
+      return done();
+    } catch (err) {
+      const detail = errorDetail(err);
+      emit('notice', { text: `Inco decrypt failed: ${detail}` });
+      return fail(detail);
+    } finally {
+      decrypting = false;
+    }
+  }
+
   function view() {
     const closed = st?.phase === 'closed';
     return {
@@ -345,15 +365,6 @@ export function createChainSession({
       st = fresh;
       glasses = Number(await contract.glasses(address));
 
-      if (fresh.phase === 'playing' && !dealtSent) {
-        try {
-          await readCards();
-          dealtSent = true;
-          emit('dealt', { cards });
-        } catch (err) {
-          emit('notice', { text: errorDetail(err) });
-        }
-      }
       for (let i = 0; i < rows.length; i++) {
         const previous = ledger[i];
         const current = rows[i];
@@ -404,6 +415,8 @@ export function createChainSession({
         honest: truthfulAnswer(AGENTS[askerCard].mask, entry.queryMask, entry.modeAll),
       };
     },
+
+    decryptCards,
 
     ask: (mask, all) => write('ask', [tableId, mask, all], 'asking the room'),
 
