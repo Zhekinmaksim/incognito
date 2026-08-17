@@ -73,10 +73,20 @@ button:disabled{cursor:default;opacity:.32}
 .mb.on{background:var(--gold);color:var(--ink)}
 .chainbar{margin-top:14px;padding:12px 14px;background:var(--ink-2);border:1px solid var(--rule);
   display:none;align-items:center;gap:14px;flex-wrap:wrap;
-  font-family:var(--type);font-size:11px;letter-spacing:.03em;color:var(--dim)}
+  font-family:var(--type);font-size:13px;line-height:1.45;letter-spacing:.03em;color:var(--body)}
 .chainbar.on{display:flex}
 .chainbar b{color:var(--gold);font-weight:400}
-.chainbar .addr{color:var(--paper)}
+.chainbar .addr{color:var(--paper);font-size:13px}
+.wallet-status{flex:1;min-width:min(100%,320px);padding:9px 12px 8px;border-left:2px solid var(--rule);
+  color:var(--paper);font-size:clamp(14px,1.25vw,16px);line-height:1.35}
+.chainbar[data-state="loading"] .wallet-status{border-color:var(--gold);color:var(--gold)}
+.chainbar[data-state="waiting"] .wallet-status{border-color:var(--gold);color:var(--paper)}
+.chainbar[data-state="error"] .wallet-status{border-color:var(--blood);color:#D76A61}
+.chainbar[data-state="success"] .wallet-status{border-color:var(--gold);color:var(--gold)}
+@media(max-width:720px){
+  .chainbar{padding:14px;font-size:12px;gap:10px}
+  .wallet-status{flex-basis:100%;border-left:0;border-top:2px solid var(--rule);padding:11px 0 0}
+}
 .tab .lbl{font-family:var(--type);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
 
 /* ---------------- the table ---------------- */
@@ -211,7 +221,7 @@ button:disabled{cursor:default;opacity:.32}
     <span id="chainWhat">Watching the house table.</span>
     <span id="chainWho" class="addr"></span>
     <button class="call" id="connect" type="button" style="display:none">connect a wallet</button>
-    <span id="chainNote"></span>
+    <span id="chainNote" class="wallet-status" role="status" aria-live="polite"></span>
   </div>
 
   <div class="table" id="table"></div>
@@ -564,7 +574,10 @@ $('again').addEventListener('click', () => { $('over').classList.remove('on'); d
 
 /* ------------------------------------------------------------ chain modes */
 
-function note(t) { $('chainNote').textContent = t || ''; }
+function note(t, state = '') {
+  $('chainNote').textContent = t || '';
+  $('chainbar').dataset.state = state;
+}
 
 async function loadEthers() {
   if (window.ethers) return window.ethers;
@@ -575,7 +588,7 @@ async function loadEthers() {
 
 /** Read-only, no wallet, no permission. Everything shown here is public. */
 async function startWatching() {
-  if (!CHAIN.address) { note('No contract deployed yet — the table upstairs still plays.'); return; }
+  if (!CHAIN.address) { note('No contract deployed yet — the table upstairs still plays.', 'error'); return; }
   const { ethers } = await loadEthers().then(m => ({ ethers: m }));
   const provider = new ethers.JsonRpcProvider(CHAINS[CHAIN.chainId].rpc);
   const contract = new ethers.Contract(CHAIN.address, ABI, provider);
@@ -597,7 +610,7 @@ async function startWatching() {
       drawChainLedger();
     },
   });
-  note(`watching table ${tableId}, no wallet needed`);
+  note(`Watching table ${tableId}. No wallet is needed.`, 'success');
 }
 
 /** A seat of your own. */
@@ -618,37 +631,38 @@ async function findPlayerTable(contract, address) {
 }
 
 async function startPlaying() {
-  if (!CHAIN.address) { note('No contract deployed yet.'); return; }
+  if (!CHAIN.address) { note('No contract deployed yet.', 'error'); return; }
   if (busy) return;
   busy = true; refreshChain();
   const conn = await connectWallet(CHAIN.chainId);
-  if (!conn.ok) { busy = false; note(conn.why); refreshChain(); return; }
+  if (!conn.ok) { busy = false; note(conn.why, 'error'); refreshChain(); return; }
   const m = await loadEthers();
   const provider = new m.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
   const contract = new m.Contract(CHAIN.address, ABI, signer);
   $('chainWho').textContent = conn.address.slice(0, 6) + '…' + conn.address.slice(-4);
+  $('connect').textContent = 'retry open chair';
 
-  note('looking for the open chair…');
+  note('Wallet connected. Looking for the open chair…', 'loading');
   let place;
   try {
     place = await findPlayerTable(contract, conn.address);
   } catch (err) {
-    busy = false; note('could not read the table: ' + (err.shortMessage || err.message)); refreshChain(); return;
+    busy = false; note('Could not read the table: ' + (err.shortMessage || err.message), 'error'); refreshChain(); return;
   }
   if (!place) {
-    busy = false; note('No open chair yet. The keeper is preparing the next table.'); refreshChain(); return;
+    busy = false; note('Wallet connected. No open chair yet — deploy or restart the keeper, then retry.', 'waiting'); refreshChain(); return;
   }
 
   if (!place.seated) {
-    note(`seat ${place.seat + 1} is open — confirm the transaction`);
+    note(`Seat ${place.seat + 1} is open. Confirm the transaction in your wallet.`, 'loading');
     try {
       const tx = await contract.sit(place.tableId);
-      note('taking the seat…');
+      note('Transaction submitted. Taking the seat…', 'loading');
       await tx.wait();
     } catch (err) {
       busy = false;
-      note('could not sit down — the chair may have just been taken: ' + (err.shortMessage || err.message));
+      note('Could not sit down — the chair may have just been taken: ' + (err.shortMessage || err.message), 'error');
       refreshChain();
       return;
     }
@@ -666,7 +680,7 @@ async function startPlaying() {
     contract, signer, zap, tableId, seat,
     address: conn.address,
     onEvent: ev => {
-      if (ev.type === 'notice') { note(ev.text); return; }
+      if (ev.type === 'notice') { note(ev.text, ev.text?.includes('waiting') ? 'loading' : ''); return; }
       if (ev.type === 'asked') {
         const pending = chain?.pendingForYou();
         if (pending) {
@@ -685,7 +699,7 @@ async function startPlaying() {
   busy = false;
   $('connect').style.display = 'none';
   stage('Seat confirmed', `You are at table ${tableId}`, '', 'Reading the four cards everyone except their owner may see.');
-  note('seated');
+  note(`Seated at table ${tableId}. Wallet moves are now on chain.`, 'success');
   refreshChain();
 }
 
@@ -768,6 +782,7 @@ async function setMode(next) {
   document.querySelectorAll('.mb').forEach(b => b.classList.toggle('on', b.dataset.mode === next));
   $('chainbar').classList.toggle('on', next !== 'local');
   $('connect').style.display = next === 'play' ? 'inline-block' : 'none';
+  $('connect').textContent = 'connect a wallet';
   $('chainWhat').textContent = next === 'watch'
     ? 'Watching the house table. Nothing is asked of you.'
     : 'A seat of your own. Every move is a transaction.';
