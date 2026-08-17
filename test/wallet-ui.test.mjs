@@ -15,6 +15,7 @@ const checks = [
   ['keeper leaves the fifth chair open', keeper.includes('const BOT_SEATS = 4;') && keeper.includes('s < BOT_SEATS')],
   ['keeper migrates away from the legacy five-bot table', keeper.includes('leaving legacy all-bot table')],
   ['keeper refills empty bot seats before a new ante', keeper.includes("await this.send(seat, 'refill', [])")],
+  ['keeper ABI can recover the table id from Seated', keeper.includes("event Seated(uint256 indexed tableId")],
   ['keeper waits when the visitor must act', keeper.includes("if (!bot) return;                                // the visitor's turn")],
 ];
 

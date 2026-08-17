@@ -56,6 +56,13 @@ const ABI = [
   'function served(address) view returns (bool)',
   'function refill()',
   'function seatOwner(uint256 tableId, uint8 seat) view returns (address)',
+  'error NotYourTurn()',
+  'error NotYou()',
+  'error WrongPhase()',
+  'error NoGlasses()',
+  'error BadQuery()',
+  'error StillInTime()',
+  'event Seated(uint256 indexed tableId, uint8 seat, address player)',
   'event Dealt(uint256 indexed tableId)',
   'event Asked(uint256 indexed tableId, uint256 answerId, uint8 asker, uint8 responder, uint8 queryMask, bool modeAll)',
   'event Answered(uint256 indexed tableId, uint256 answerId, bool claim, uint8 phrasing, uint32 elapsed)',
@@ -300,6 +307,7 @@ export class Keeper {
             this.log(`seat ${s} sat down`);
           }
           this.bots = null;
+          this.log(`table ${this.tableId} is waiting for a player in seat ${BOT_SEATS}`);
           return;
         }
         await this.deal();
