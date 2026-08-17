@@ -269,6 +269,16 @@ export class Keeper {
       const st = await this.read.tableState(candidate);
       const phase = PHASE[Number(st.phase)];
       if (phase !== 'Closed') {
+        if (phase !== 'Open' && Number(st.filled) === 5) {
+          const keeperAddresses = new Set(this.wallets.map(wallet => wallet.address.toLowerCase()));
+          const owners = [];
+          for (let seat = 0; seat < 5; seat++) owners.push((await this.read.seatOwner(candidate, seat)).toLowerCase());
+          if (owners.every(owner => keeperAddresses.has(owner))) {
+            this.log(`leaving legacy all-bot table ${candidate} and opening a visitor table`);
+            await this.openTable();
+            return;
+          }
+        }
         this.tableId = candidate;
         if (phase === 'Open') {
           for (let s = Number(st.filled); s < BOT_SEATS; s++) {
