@@ -1,7 +1,8 @@
 /**
  * THE ARCHIVE — the keeper that keeps a table alive.
  *
- * Five wallets, five personalities, one perpetual game. It is not a bot mode:
+ * Four bot wallets, four personalities, and one chair kept open for a visitor.
+ * It is not a bot mode:
  * the contract cannot tell these apart from anybody else, which is the point.
  * A visitor who walks in at three in the morning takes one of these seats and
  * the round carries on.
@@ -12,7 +13,7 @@
  * Env:
  *   RPC_URL           an endpoint for the chain the game is on
  *   CONTRACT          deployed Incognito address
- *   KEEPER_KEYS       five comma-separated private keys, one per seat
+ *   KEEPER_KEYS       five comma-separated private keys (four seats, one spare)
  *   INCO_ENV          'testnet' for Base Sepolia, 'mainnet' for Base
  */
 
@@ -52,6 +53,7 @@ const ABI = [
   'function nextTable() view returns (uint256)',
   'function ledger(uint256 tableId, uint256 i) view returns (uint8 asker, uint8 responder, uint8 queryMask, bool modeAll, bool answered, bool claim, uint8 phrasing, uint64 askedAt, uint32 elapsed, bytes32 truth, bool audited, bool wasLie)',
   'function glasses(address) view returns (uint32)',
+  'function seatOwner(uint256 tableId, uint8 seat) view returns (address)',
   'event Dealt(uint256 indexed tableId)',
   'event Asked(uint256 indexed tableId, uint256 answerId, uint8 asker, uint8 responder, uint8 queryMask, bool modeAll)',
   'event Answered(uint256 indexed tableId, uint256 answerId, bool claim, uint8 phrasing, uint32 elapsed)',
@@ -60,6 +62,7 @@ const ABI = [
 ];
 
 const PHASE = ['Open', 'Playing', 'AwaitingAccusation', 'AwaitingDeclaration', 'Closed'];
+const BOT_SEATS = 4;
 
 function ethersWalletClient(wallet) {
   return {
@@ -238,7 +241,7 @@ export class Keeper {
     if (this.zap.covalidatorUrls) this.log(`Inco covalidators ${this.zap.covalidatorUrls.join(', ')}`);
   }
 
-  /** Open a table and fill every seat. */
+  /** Open a table, seat four regulars, and leave the last chair for a visitor. */
   async openTable() {
     const seatValue = ethers.parseEther(TABLE_FUND);
     const rc = await this.send(0, 'openTable', [], { value: seatValue });
@@ -250,10 +253,12 @@ export class Keeper {
       } catch { /* not ours */ }
     }
     this.log(`table ${this.tableId} opened by seat 0`);
-    for (let s = 1; s < 5; s++) {
+    for (let s = 1; s < BOT_SEATS; s++) {
       await this.send(s, 'sit', [this.tableId], { value: seatValue });
       this.log(`seat ${s} sat down`);
     }
+    this.bots = null;
+    this.log(`table ${this.tableId} is waiting for a player in seat ${BOT_SEATS}`);
   }
 
   async ensureTable() {
@@ -266,18 +271,18 @@ export class Keeper {
       if (phase !== 'Closed') {
         this.tableId = candidate;
         if (phase === 'Open') {
-          for (let s = Number(st.filled); s < 5; s++) {
+          for (let s = Number(st.filled); s < BOT_SEATS; s++) {
             await this.send(s, 'sit', [this.tableId], { value: seatValue });
             this.log(`seat ${s} sat down`);
           }
+          this.bots = null;
+          return;
         }
-        const fresh = await this.read.tableState(this.tableId);
-        if (PHASE[Number(fresh.phase)] === 'Playing') await this.deal();
+        await this.deal();
         return;
       }
     }
     await this.openTable();
-    await this.deal();
   }
 
   /**
@@ -286,9 +291,14 @@ export class Keeper {
    * expressed as an access error.
    */
   async readTable() {
+    const owners = [];
+    for (let seat = 0; seat < 5; seat++) owners.push((await this.read.seatOwner(this.tableId, seat)).toLowerCase());
+    const keeperByAddress = new Map(this.wallets.map((wallet, index) => [wallet.address.toLowerCase(), index]));
     const cards = [];
     for (let seat = 0; seat < 5; seat++) {
-      const viewer = (seat + 1) % 5;                 // anybody but the owner
+      const viewerSeat = owners.findIndex((owner, candidate) => candidate !== seat && keeperByAddress.has(owner));
+      if (viewerSeat < 0) throw new Error(`no keeper may read seat ${seat}`);
+      const viewer = keeperByAddress.get(owners[viewerSeat]);
       const [idHandle] = await this.read.seatCard(this.tableId, seat);
       const id = await decryptHandle(this.zap, this.wallets[viewer], idHandle);
       cards.push(Number(id));
@@ -298,7 +308,11 @@ export class Keeper {
 
   async deal() {
     const cards = await this.readTable();
+    const keeperAddresses = new Set(this.wallets.map(wallet => wallet.address.toLowerCase()));
+    const owners = [];
+    for (let seat = 0; seat < 5; seat++) owners.push((await this.read.seatOwner(this.tableId, seat)).toLowerCase());
     this.bots = PERSONALITIES.map((p, s) => {
+      if (!keeperAddresses.has(owners[s])) return null;
       const b = createBot(p, s);
       b.myTrueId = cards[s];
       b.observe(cards.filter((_, k) => k !== s), cards.map((id, k) => (k === s ? null : id)));
@@ -310,7 +324,9 @@ export class Keeper {
   /** Replay any ledger rows the bots have not seen yet. */
   async syncLedger() {
     const n = Number(await this.read.ledgerLength(this.tableId));
-    const known = this.bots[0].answers.length;
+    const firstBot = this.bots.find(Boolean);
+    if (!firstBot) return;
+    const known = firstBot.answers.length;
     for (let i = known; i < n; i++) {
       const row = await this.read.ledger(this.tableId, i);
       if (!row.answered) continue;
@@ -320,7 +336,7 @@ export class Keeper {
         claim: row.claim, answered: true, elapsed: Number(row.elapsed),
         audited: row.audited,
       };
-      this.bots.forEach(b => b.record(entry));
+      this.bots.forEach(b => b?.record(entry));
     }
   }
 
@@ -328,7 +344,12 @@ export class Keeper {
     const st = await this.read.tableState(this.tableId);
     const phase = PHASE[Number(st.phase)];
 
-    if (phase === 'Closed') { this.log('table closed'); this.tableId = null; return; }
+    if (phase === 'Closed') { this.log('table closed'); this.tableId = null; this.bots = null; return; }
+
+    // Four bots are seated, but the deal deliberately waits for a visitor.
+    if (phase === 'Open') return;
+
+    if (!this.bots) await this.deal();
 
     // A reveal is pending: post the attestation so the room can carry on.
     if (phase === 'AwaitingAccusation' || phase === 'AwaitingDeclaration') {
@@ -352,6 +373,7 @@ export class Keeper {
       const row = await this.read.ledger(this.tableId, n - 1);
       const asker = Number(row.asker);
       const bot = this.bots[seat];
+      if (!bot) return;                              // the visitor must answer
       const { claim, honest } = bot.respond(asker, bot.knownIdOf(asker), Number(row.queryMask), row.modeAll);
       const lying = claim !== honest;
       await wait(hesitation(lying));               // the tell, paid for in real time
@@ -362,7 +384,7 @@ export class Keeper {
 
     // Anybody who was lied to may spend a glass.
     for (let s = 0; s < 5; s++) {
-      const target = this.bots[s].accusation();
+      const target = this.bots[s]?.accusation();
       if (!target) continue;
       const bal = await this.read.glasses(this.wallets[s].address);
       if (bal < 1n) continue;
@@ -374,6 +396,7 @@ export class Keeper {
     // Whoever's turn it is either names themselves or asks.
     const me = Number(st.turn);
     const bot = this.bots[me];
+    if (!bot) return;                                // the visitor's turn
     const guess = bot.declaration();
     if (guess != null) {
       await this.send(me, 'declare', [this.tableId, guess]);
@@ -399,7 +422,7 @@ export class Keeper {
       try {
         await this.initZap();
         await this.checkBalances();
-        if (this.tableId == null || !this.bots) await this.ensureTable();
+        if (this.tableId == null) await this.ensureTable();
         await this.step();
         this.onStep?.({ tableId: this.tableId?.toString() });
         await wait(1200);

@@ -26,6 +26,12 @@ export const ABI = [
   'function ledger(uint256 tableId, uint256 i) view returns (uint8 asker, uint8 responder, uint8 queryMask, bool modeAll, bool answered, bool claim, uint8 phrasing, uint64 askedAt, uint32 elapsed, bytes32 truth, bool audited, bool wasLie)',
   'function glasses(address) view returns (uint32)',
   'function seatOwner(uint256 tableId, uint8 seat) view returns (address)',
+  'function nextTable() view returns (uint256)',
+  'error WrongPhase()',
+  'error NoGlasses()',
+  'error NotYourTurn()',
+  'error NotYou()',
+  'error BadQuery()',
 ];
 
 const CONTRACT_PHASE = ['idle', 'playing', 'awaiting-accusation', 'awaiting-declaration', 'closed'];
@@ -134,9 +140,9 @@ function plaintextValue(attestation) {
   return plaintext && typeof plaintext === 'object' && 'value' in plaintext ? plaintext.value : plaintext;
 }
 
-async function decryptHandle(zap, signer, address, handle) {
-  const [attestation] = await zap.attestedDecrypt(ethersWalletClient(signer, address), [handle]);
-  return plaintextValue(attestation);
+async function decryptHandles(zap, signer, address, handles) {
+  const attestations = await zap.attestedDecrypt(ethersWalletClient(signer, address), handles);
+  return attestations.map(plaintextValue);
 }
 
 /* -------------------------------------------------------------- the observer */
@@ -169,16 +175,19 @@ export function createObserver({ contract, tableId, onEvent = () => {}, interval
 
   async function poll() {
     if (stopped) return;
+    if (timer) { clearTimeout(timer); timer = null; }
     try {
       const fresh = await readState(contract, tableId);
-      const rows = await readLedger(contract, tableId, ledger.length);
-      const changed = rows.length > 0 || fresh.phase !== st?.phase || fresh.turn !== st?.turn;
+      const rows = await readLedger(contract, tableId);
+      const changed = rows.length !== ledger.length || fresh.phase !== st?.phase || fresh.turn !== st?.turn;
       st = fresh;
-      for (const r of rows) {
-        ledger.push(r);
-        if (r.answered) onEvent({ type: 'answered', entry: r });
-        else onEvent({ type: 'asked', entry: r });
+      for (let i = 0; i < rows.length; i++) {
+        const previous = ledger[i];
+        const current = rows[i];
+        if (!previous) onEvent({ type: current.answered ? 'answered' : 'asked', entry: current });
+        else if (!previous.answered && current.answered) onEvent({ type: 'answered', entry: current });
       }
+      ledger = rows;
       if (changed) onEvent({ type: 'tick', view: view() });
     } catch (err) {
       onEvent({ type: 'notice', text: readableError(err) });
@@ -242,12 +251,16 @@ export function createChainSession({
    */
   async function readCards() {
     const next = Array(SEATS).fill(null);
+    const seats = [];
+    const handles = [];
     for (let s = 0; s < SEATS; s++) {
       if (s === seat) continue;
       const [idHandle] = await contract.seatCard(tableId, s);
-      const id = await decryptHandle(zap, signer, address, idHandle);
-      next[s] = Number(id);
+      seats.push(s);
+      handles.push(idHandle);
     }
+    const ids = await decryptHandles(zap, signer, address, handles);
+    seats.forEach((cardSeat, index) => { next[cardSeat] = Number(ids[index]); });
     cards = next;
   }
 
@@ -270,9 +283,10 @@ export function createChainSession({
 
   async function poll() {
     if (stopped) return;
+    if (timer) { clearTimeout(timer); timer = null; }
     try {
       const fresh = await readState(contract, tableId);
-      const rows = await readLedger(contract, tableId, ledger.length);
+      const rows = await readLedger(contract, tableId);
       st = fresh;
       glasses = Number(await contract.glasses(address));
 
@@ -281,11 +295,14 @@ export function createChainSession({
         dealtSent = true;
         emit('dealt', { cards });
       }
-      for (const r of rows) {
-        ledger.push(r);
-        emit(r.answered ? 'answered' : 'asked', { entry: r });
-        if (r.audited) emit('verdict', { entry: r, wasLie: r.wasLie });
+      for (let i = 0; i < rows.length; i++) {
+        const previous = ledger[i];
+        const current = rows[i];
+        if (!previous) emit(current.answered ? 'answered' : 'asked', { entry: current });
+        else if (!previous.answered && current.answered) emit('answered', { entry: current });
+        if (!previous?.audited && current.audited) emit('verdict', { entry: current, wasLie: current.wasLie });
       }
+      ledger = rows;
       emit('tick', { view: view() });
     } catch (err) {
       emit('notice', { text: readableError(err) });

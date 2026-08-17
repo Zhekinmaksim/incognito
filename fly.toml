@@ -1,8 +1,8 @@
 # INCOgnito keeper.
 #
-# One machine. Exactly one. Five wallets play from this process and it manages
-# their nonces itself, so a second instance would fight the first for every
-# move and half the transactions would vanish.
+# One machine. Exactly one. Four wallets hold the regular seats while the fifth
+# key remains available for compatibility. The process manages their nonces,
+# so a second instance would fight the first for every move.
 
 app = "incognito-keeper"
 primary_region = "fra"

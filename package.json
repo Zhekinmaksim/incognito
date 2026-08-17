@@ -12,7 +12,7 @@
     "deploy": "hardhat run scripts/deploy.js --network baseSepolia",
     "deploy:mainnet": "hardhat run scripts/deploy.js --network base",
     "keeper": "node keeper/keeper.js",
-    "test:logic": "node test/ui-sequence.test.mjs && node test/chain-parity.test.mjs && node test/phrasing.test.mjs",
+    "test:logic": "node test/ui-sequence.test.mjs && node test/chain-parity.test.mjs && node test/wallet-ui.test.mjs && node test/phrasing.test.mjs",
     "check:hackathon": "node scripts/hackathon-check.mjs",
     "playtest": "node test/playtest.mjs"
   },

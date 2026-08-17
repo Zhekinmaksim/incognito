@@ -76,7 +76,7 @@ game/table.js             a whole night in one call, for balance work
 game/session.js           one move at a time, for a person
 game/chain.js             the same game against a deployed contract
 game/iface.js             what the screen is allowed to know
-keeper/                   the house table: five wallets, one process
+keeper/                   four keeper wallets plus one open visitor seat
 site/                     landing page and the playable screen
 remotion/                 30-second hackathon film source
 test/                     the suites behind every claim in this file

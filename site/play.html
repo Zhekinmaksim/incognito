@@ -298,6 +298,8 @@ const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 let S = null, picked = 0, modeAll = false, busy = false;
+let mode = 'local';
+let chain = null;          // observer or seat, when we are on chain
 let handle = 'You';
 const nameOf = seat => (seat === 0 ? handle : S.agentAt(seat).name);
 
@@ -360,8 +362,11 @@ function drawLedger() {
 }
 
 function drawSplit() {
-  const cands = S.yourCandidates(0).length ? S.yourCandidates(0) : S.yourCandidates(1);
+  if (mode === 'play' && !chain) { $('split').textContent = 'Connect a wallet to load the open table.'; return; }
+  const session = mode === 'play' && chain ? chain : S;
+  const cands = session.yourCandidates(0).length ? session.yourCandidates(0) : session.yourCandidates(1);
   if (!picked) { $('split').textContent = 'Pick the traits you want to ask about.'; return; }
+  if (!cands.length) { $('split').textContent = mode === 'play' ? 'Reading the four cards you are allowed to see…' : ''; return; }
   let yes = 0;
   for (const id of cands) {
     const hit = AGENTS[id].mask & picked;
@@ -385,6 +390,7 @@ function stage(who, line, beat = '', hint = '', answer = false) {
 }
 
 function refresh(speaking = -1) {
+  if (mode === 'play') return refreshChain(speaking);
   drawTab(); drawTable(speaking); drawGrid(); drawLedger(); drawSplit();
   const yourTurn = S.state.phase === PHASE.ASK && S.state.turn === 0;
   const asked = S.state.phase === PHASE.RESPOND;
@@ -466,6 +472,14 @@ $('modeAll').addEventListener('click', () => { modeAll = true; $('modeAll').clas
 
 $('askBtn').addEventListener('click', async () => {
   if (busy || !picked) return;
+  if (mode === 'play') {
+    if (!chain) return note('Connect a wallet and take the open seat first.');
+    busy = true; refresh();
+    const r = await chain.ask(picked, modeAll);
+    if (r.ok) picked = 0;
+    busy = false; drawChips(); refresh();
+    return;
+  }
   const r = S.ask(picked, modeAll);
   if (!r.ok) return;
   busy = true;
@@ -488,6 +502,13 @@ let askedAt = 0;
 async function answer(claim) {
   if (busy) return;
   const held = Math.max(1, Math.round((Date.now() - askedAt) / 1000));
+  if (mode === 'play') {
+    if (!chain) return note('You are not seated.');
+    busy = true; refresh();
+    await chain.respond(claim, held);
+    busy = false; refresh();
+    return;
+  }
   busy = true;
   const p = S.pendingForYou();
   const lied = p && claim !== p.honest;
@@ -503,6 +524,7 @@ async function answer(claim) {
 }
 
 $('ledger').addEventListener('click', async e => {
+  if (mode !== 'local') return;
   const b = e.target.closest('.call'); if (!b || busy) return;
   const r = S.accuse(Number(b.dataset.call));
   if (!r.ok) return;
@@ -524,6 +546,13 @@ $('grid').addEventListener('click', async e => {
   const c = e.target.closest('.card'); if (!c || busy) return;
   if (!c.classList.contains('pick')) return;
   document.querySelectorAll('.card').forEach(x => x.classList.remove('pick'));
+  if (mode === 'play') {
+    if (!chain) return note('You are not seated.');
+    busy = true; refresh();
+    await chain.declare(Number(c.dataset.id));
+    busy = false; refresh();
+    return;
+  }
   busy = true;
   const r = S.declare(Number(c.dataset.id));
   refresh(); await sleep(600); busy = false;
@@ -534,9 +563,6 @@ $('grid').addEventListener('click', async e => {
 $('again').addEventListener('click', () => { $('over').classList.remove('on'); deal(); });
 
 /* ------------------------------------------------------------ chain modes */
-
-let mode = 'local';
-let chain = null;          // observer or seat, when we are on chain
 
 function note(t) { $('chainNote').textContent = t || ''; }
 
@@ -553,8 +579,13 @@ async function startWatching() {
   const { ethers } = await loadEthers().then(m => ({ ethers: m }));
   const provider = new ethers.JsonRpcProvider(CHAINS[CHAIN.chainId].rpc);
   const contract = new ethers.Contract(CHAIN.address, ABI, provider);
+  let tableId = CHAIN.houseTable;
+  try {
+    const next = Number(await contract.nextTable());
+    if (next > 0) tableId = next - 1;
+  } catch { /* keep the configured fallback for older deployments */ }
   chain = createObserver({
-    contract, tableId: CHAIN.houseTable,
+    contract, tableId,
     onEvent: ev => {
       if (ev.type === 'notice') return note(ev.text);
       if (ev.type === 'answered') {
@@ -566,73 +597,169 @@ async function startWatching() {
       drawChainLedger();
     },
   });
-  note('live, no wallet needed');
+  note(`watching table ${tableId}, no wallet needed`);
 }
 
 /** A seat of your own. */
+async function findPlayerTable(contract, address) {
+  const next = Number(await contract.nextTable());
+  let joinable = null;
+  for (let id = next - 1; id >= Math.max(0, next - 20); id--) {
+    const state = await contract.tableState(id);
+    const phase = Number(state.phase);
+    const filled = Number(state.filled);
+    for (let seat = 0; seat < filled; seat++) {
+      const owner = await contract.seatOwner(id, seat);
+      if (owner?.toLowerCase() === address.toLowerCase()) return { tableId: id, seat, seated: true };
+    }
+    if (!joinable && phase === 0 && filled === 4) joinable = { tableId: id, seat: 4, seated: false };
+  }
+  return joinable;
+}
+
 async function startPlaying() {
   if (!CHAIN.address) { note('No contract deployed yet.'); return; }
+  if (busy) return;
+  busy = true; refreshChain();
   const conn = await connectWallet(CHAIN.chainId);
-  if (!conn.ok) { note(conn.why); return; }
+  if (!conn.ok) { busy = false; note(conn.why); refreshChain(); return; }
   const m = await loadEthers();
   const provider = new m.BrowserProvider(window.ethereum);
   const signer = await provider.getSigner();
   const contract = new m.Contract(CHAIN.address, ABI, signer);
   $('chainWho').textContent = conn.address.slice(0, 6) + '…' + conn.address.slice(-4);
 
+  note('looking for the open chair…');
+  let place;
+  try {
+    place = await findPlayerTable(contract, conn.address);
+  } catch (err) {
+    busy = false; note('could not read the table: ' + (err.shortMessage || err.message)); refreshChain(); return;
+  }
+  if (!place) {
+    busy = false; note('No open chair yet. The keeper is preparing the next table.'); refreshChain(); return;
+  }
+
+  if (!place.seated) {
+    note(`seat ${place.seat + 1} is open — confirm the transaction`);
+    try {
+      const tx = await contract.sit(place.tableId);
+      note('taking the seat…');
+      await tx.wait();
+    } catch (err) {
+      busy = false;
+      note('could not sit down — the chair may have just been taken: ' + (err.shortMessage || err.message));
+      refreshChain();
+      return;
+    }
+  }
+
   // Inco's client needs the same wallet to prove you may read a card.
   const { Lightning } = await import('https://esm.sh/@inco/lightning-js@1.0.0/lite');
   const zap = CHAIN.chainId === 8453
-    ? await Lightning.baseMainnet()
-    : await Lightning.baseSepoliaTestnet();
+    ? await Lightning.baseMainnet({ hostChainRpcUrls: [CHAINS[CHAIN.chainId].rpc] })
+    : await Lightning.baseSepoliaTestnet({ hostChainRpcUrls: [CHAINS[CHAIN.chainId].rpc] });
 
-  note('finding you a seat…');
-  try {
-    const tx = await contract.sit(CHAIN.houseTable);
-    await tx.wait();
-  } catch (err) {
-    note('could not sit down: ' + (err.shortMessage || err.message));
-    return;
-  }
-
-  // Which chair did we actually get? The contract knows; ask it rather than guess.
-  let seat = -1;
-  for (let i = 0; i < 5; i++) {
-    try {
-      const owner = await contract.seatOwner(CHAIN.houseTable, i);
-      if (owner && owner.toLowerCase() === conn.address.toLowerCase()) { seat = i; break; }
-    } catch { /* older deploys may not expose it */ }
-  }
-  if (seat < 0) { note('sat down, but could not work out which seat — reload'); return; }
+  const { tableId, seat } = place;
   $('chainWhat').textContent = `Seat ${seat + 1}. Every move is a transaction.`;
   chain = createChainSession({
-    contract, signer, zap, tableId: CHAIN.houseTable, seat,
+    contract, signer, zap, tableId, seat,
     address: conn.address,
     onEvent: ev => {
-      if (ev.type === 'notice') return note(ev.text);
-      drawChainLedger();
+      if (ev.type === 'notice') { note(ev.text); return; }
+      if (ev.type === 'asked') {
+        const pending = chain?.pendingForYou();
+        if (pending) {
+          askedAt = Date.now();
+          stage(`Seat ${pending.asker + 1} asks you`, pending.entry.text, '',
+            `The honest answer is ${pending.honest ? 'yes' : 'no'}. You may say either.`);
+        }
+      }
       if (ev.type === 'answered') {
         const e = ev.entry;
         stage('the table', e.claim ? 'Yes.' : 'No.', `held it for ${e.elapsed}s`, e.text, true);
       }
+      refreshChain();
     },
   });
+  busy = false;
+  $('connect').style.display = 'none';
+  stage('Seat confirmed', `You are at table ${tableId}`, '', 'Reading the four cards everyone except their owner may see.');
   note('seated');
+  refreshChain();
 }
 
 /** The chain modes render from view(), not from the local session. */
+function drawChainTab() {
+  const glasses = chain ? chain.view().glasses : 0;
+  $('tab').innerHTML = Array.from({ length: 5 }, (_, i) =>
+    `<span class="glass${i < glasses ? '' : ' spent'}"></span>`).join('');
+}
+
+function drawChainTable(speaking = -1) {
+  const v = chain?.view();
+  $('table').innerHTML = Array.from({ length: 5 }, (_, seat) => {
+    if (v && seat === v.you) return `<div class="seat you${speaking === seat ? ' speaking' : ''}">
+      <div class="redact"><span>every one of them<br>can read this<br>except you</span></div>
+      <div class="nm">${handle}</div><div class="role">seat ${seat + 1} · that is you</div></div>`;
+    const id = v?.cards?.[seat];
+    if (id == null) return `<div class="seat${speaking === seat ? ' speaking' : ''}">
+      <div class="redact"><span>${chain ? 'decrypting card' : 'waiting for wallet'}</span></div>
+      <div class="nm">SEAT ${seat + 1}</div><div class="role">on chain</div></div>`;
+    const agent = AGENTS[id];
+    return `<div class="seat${speaking === seat ? ' speaking' : ''}">
+      <img src="${PORTRAITS[agent.name]}" alt="${agent.name}">
+      <div class="nm">${agent.name}</div><div class="role">seat ${seat + 1}</div></div>`;
+  }).join('');
+}
+
+function drawChainGrid() {
+  const v = chain?.view();
+  const ready = v?.cards?.filter(card => card != null).length === 4;
+  const live = new Set(ready ? chain.yourCandidates(0) : AGENTS.map((_, id) => id));
+  const lenient = new Set(ready ? chain.yourCandidates(1) : live);
+  const seated = new Set((v?.cards || []).filter(card => card != null));
+  $('grid').innerHTML = AGENTS.map((agent, id) => {
+    const gone = ready && !live.has(id) && !(live.size === 0 && lenient.has(id));
+    return `<figure class="card${gone ? ' gone' : ''}${seated.has(id) ? ' seated' : ''}" data-id="${id}">
+      <img src="${PORTRAITS[agent.name]}" alt="${agent.name}" loading="lazy">
+      <figcaption class="cn">${agent.name}</figcaption>
+      <div class="ct">${traitsOf(agent.mask).join(' · ')}</div></figure>`;
+  }).join('');
+  $('count').innerHTML = !chain ? 'Connect a wallet to take the open chair.'
+    : !ready ? 'Decrypting the four cards you are allowed to read…'
+    : live.size === 0 ? '<b>Nobody fits.</b> Somebody may have lied to you.'
+    : `<b>${live.size}</b> of sixteen still fit what you have been told.`;
+}
+
 function drawChainLedger() {
   if (!chain) return;
   const v = chain.view();
   $('ledger').innerHTML = v.ledger.slice().reverse().map(a => `
     <div class="rec"><div>
       <div class="q">${a.text}</div>
-      <div class="a">seat ${a.responder} said <b>${a.answered ? (a.claim ? 'yes' : 'no') : '…'}</b></div>
+      <div class="a">seat ${a.responder + 1} said <b>${a.answered ? (a.claim ? 'yes' : 'no') : '…'}</b></div>
       <div class="t">${a.answered ? 'held it for ' + a.elapsed + 's' : 'still deciding'}</div>
     </div><div>${a.audited
       ? `<span class="verdict ${a.wasLie ? 'lie' : 'true'}">${a.wasLie ? 'lied' : 'told the truth'}</span>`
       : (v.you === a.asker ? `<button class="call" data-chaincall="${a.id}">call it</button>` : '')}</div></div>`).join('')
     || '<p class="t">The room is quiet.</p>';
+}
+
+function refreshChain(speaking = -1) {
+  drawChainTab(); drawChainTable(speaking); drawChainGrid(); drawChainLedger(); drawSplit();
+  const v = chain?.view();
+  const yourTurn = v?.phase === PHASE.ASK;
+  const asked = v?.phase === PHASE.RESPOND;
+  $('askBtn').disabled = !yourTurn || busy || !picked;
+  $('declareBtn').disabled = !yourTurn || busy;
+  $('respondRow').style.display = asked ? 'flex' : 'none';
+  $('chips').style.display = asked ? 'none' : 'flex';
+  document.querySelector('.modes').style.display = asked ? 'none' : 'flex';
+  $('ctrlTitle').textContent = !chain ? 'Connect a wallet to take the open chair'
+    : asked ? 'They are waiting on you'
+    : yourTurn ? 'Your turn — ask the room'
+    : `Waiting for seat ${(v?.turn ?? 0) + 1}`;
 }
 
 async function setMode(next) {
@@ -647,7 +774,9 @@ async function setMode(next) {
   note('');
 
   if (next === 'local') { $('door').classList.add('on'); return; }
+  $('door').classList.remove('on');
   if (next === 'watch') return startWatching();
+  refreshChain();
 }
 
 $('modebar').addEventListener('click', e => {
