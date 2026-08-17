@@ -53,6 +53,8 @@ const ABI = [
   'function nextTable() view returns (uint256)',
   'function ledger(uint256 tableId, uint256 i) view returns (uint8 asker, uint8 responder, uint8 queryMask, bool modeAll, bool answered, bool claim, uint8 phrasing, uint64 askedAt, uint32 elapsed, bytes32 truth, bool audited, bool wasLie)',
   'function glasses(address) view returns (uint32)',
+  'function served(address) view returns (bool)',
+  'function refill()',
   'function seatOwner(uint256 tableId, uint8 seat) view returns (address)',
   'event Dealt(uint256 indexed tableId)',
   'event Asked(uint256 indexed tableId, uint256 answerId, uint8 asker, uint8 responder, uint8 queryMask, bool modeAll)',
@@ -230,6 +232,15 @@ export class Keeper {
 
   log(...a) { console.log(new Date().toISOString().slice(11, 19), ...a); }
 
+  async ensureAnte(seat) {
+    const address = this.wallets[seat].address;
+    const balance = await this.read.glasses(address);
+    if (balance > 0n) return;
+    if (!(await this.read.served(address))) return; // first sit pours the initial five
+    await this.send(seat, 'refill', []);
+    this.log(`seat ${seat} refilled for the next table`);
+  }
+
   async initZap() {
     if (this.zap) return;
     this.zap = INCO_ENV === 'mainnet'
@@ -244,6 +255,7 @@ export class Keeper {
   /** Open a table, seat four regulars, and leave the last chair for a visitor. */
   async openTable() {
     const seatValue = ethers.parseEther(TABLE_FUND);
+    await this.ensureAnte(0);
     const rc = await this.send(0, 'openTable', [], { value: seatValue });
     this.tableId = 0n;
     for (const ev of rc.logs) {
@@ -254,6 +266,7 @@ export class Keeper {
     }
     this.log(`table ${this.tableId} opened by seat 0`);
     for (let s = 1; s < BOT_SEATS; s++) {
+      await this.ensureAnte(s);
       await this.send(s, 'sit', [this.tableId], { value: seatValue });
       this.log(`seat ${s} sat down`);
     }
@@ -282,6 +295,7 @@ export class Keeper {
         this.tableId = candidate;
         if (phase === 'Open') {
           for (let s = Number(st.filled); s < BOT_SEATS; s++) {
+            await this.ensureAnte(s);
             await this.send(s, 'sit', [this.tableId], { value: seatValue });
             this.log(`seat ${s} sat down`);
           }
