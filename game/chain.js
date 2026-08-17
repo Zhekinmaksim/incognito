@@ -141,8 +141,18 @@ function plaintextValue(attestation) {
 }
 
 async function decryptHandles(zap, signer, address, handles) {
-  const attestations = await zap.attestedDecrypt(ethersWalletClient(signer, address), handles);
-  return attestations.map(plaintextValue);
+  const walletClient = ethersWalletClient(signer, address);
+  try {
+    const attestations = await zap.attestedDecrypt(walletClient, handles);
+    if (attestations?.length === handles.length) return attestations.map(plaintextValue);
+  } catch { /* some Inco clients reject a fresh multi-handle request */ }
+
+  const values = [];
+  for (const handle of handles) {
+    const [attestation] = await zap.attestedDecrypt(walletClient, [handle]);
+    values.push(plaintextValue(attestation));
+  }
+  return values;
 }
 
 /* -------------------------------------------------------------- the observer */
@@ -291,9 +301,13 @@ export function createChainSession({
       glasses = Number(await contract.glasses(address));
 
       if (fresh.phase === 'playing' && !dealtSent) {
-        await readCards();                 // one burst of prompts, once
-        dealtSent = true;
-        emit('dealt', { cards });
+        try {
+          await readCards();
+          dealtSent = true;
+          emit('dealt', { cards });
+        } catch {
+          emit('notice', { text: 'Cards are still being prepared by Inco. Retrying…' });
+        }
       }
       for (let i = 0; i < rows.length; i++) {
         const previous = ledger[i];

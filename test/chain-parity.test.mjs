@@ -47,6 +47,7 @@ const zap = {
   attestedDecrypt: async (walletClient, handles) => {
     decryptBatchSizes.push(handles.length);
     await walletClient.request({ method: 'eth_chainId', params: [] });
+    if (handles.length > 1) throw new Error('batch unavailable');
     return handles.map(handle => ({
       handle,
       plaintext: { value: BigInt(Number(handle.slice(-1)) + 1) },
@@ -78,7 +79,8 @@ await sleep(120);
 check('dealt fired', events.includes('dealt'));
 check('Inco wallet client proxies RPC requests', calls.includes('eth_chainId'));
 check('four cards read, own seat left blank', s.view().cards.filter(c => c != null).length === 4 && s.view().cards[0] === null);
-check('four visible cards decrypt in one wallet request', decryptBatchSizes.length === 1 && decryptBatchSizes[0] === 4);
+check('multi-handle failure falls back to four single decryptions',
+  decryptBatchSizes.join(',') === '4,1,1,1,1');
 check('phase is your turn', s.view().phase === PHASE.ASK);
 
 const r1 = await s.ask(1, false);
